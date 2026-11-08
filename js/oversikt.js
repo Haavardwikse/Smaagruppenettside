@@ -1,6 +1,6 @@
 import {
   supabase, isConfigured, config, el, ageFromYear, formatDate, toast, friendlyError, notConfiguredBanner,
-  ask, showCopyable,
+  ask, normPhone, validPhone, validEmail, fmtPhone, lookupPostalCode, SCHEMA_VERSION,
 } from './felles.js';
 
 const $ = (id) => document.getElementById(id);
@@ -23,7 +23,8 @@ const state = {
   profiles: [],      // alle brukere (bare admin)
   triads: [],
   triadMembers: [],
-  meetingsMeta: [],  // siste samling per gruppe (bare admin)
+  overview: new Map(), // per gruppe: siste samling, snitt oppmøte (bare admin)
+  health: null,        // datasjekk (bare admin)
   current: null,
   meetings: [],
   view: 'home',
@@ -87,15 +88,6 @@ const pendingDeputies = (gid) => pendingFor(gid).filter((i) => i.role === 'nestl
 const hasDeputy = (gid) => deputiesOf(gid).length > 0;
 const roleLabel = (r) => (r === 'nestleder' ? 'Nestleder' : 'Leder');
 
-const normPhone = (s) => (s || '').replace(/[\s\-().]/g, '');
-const validPhone = (s) => /^\+?[0-9]{8,15}$/.test(s);
-const validEmail = (s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
-function fmtPhone(p) {
-  if (!p) return '';
-  if (/^\d{8}$/.test(p)) return p.replace(/(\d{3})(\d{2})(\d{3})/, '$1 $2 $3');
-  if (/^\+47\d{8}$/.test(p)) return '+47 ' + fmtPhone(p.slice(3));
-  return p;
-}
 
 function contactLine(phone, email) {
   const parts = [];
@@ -163,9 +155,9 @@ function downloadCsv(rows, label) {
     if (/^[=+\-@]/.test(s)) s = "'" + s;
     return `"${s.replace(/"/g, '""')}"`;
   };
-  const header = ['Navn', 'Fødselsår', 'Alder', 'Postnummer', 'Sted', 'Gruppe', 'Registrert'];
+  const header = ['Deltaker-ID', 'Navn', 'Fødselsår', 'Alder', 'Postnummer', 'Sted', 'Gruppe', 'Registrert'];
   const lines = [header, ...rows.map((m) => [
-    m.full_name, m.birth_year, m.birth_year ? ageFromYear(m.birth_year) : '', m.postal_code, m.city,
+    m.member_no, m.full_name, m.birth_year, m.birth_year ? ageFromYear(m.birth_year) : '', m.postal_code, m.city,
     groupName(m.group_id), new Date(m.created_at).toLocaleDateString('nb-NO'),
   ])].map((r) => r.map(safe).join(';'));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
@@ -222,7 +214,7 @@ async function loadAll() {
     q(supabase.from('profiles').select('id, email, full_name, role, phone').eq('id', uid).maybeSingle()),
     q(supabase.from('groups').select('id, name, description, active, created_at').order('name')),
     q(supabase.from('group_leaders').select('group_id, user_id, role, member_id, profiles(full_name, email, phone)')),
-    q(supabase.from('members').select('id, group_id, full_name, birth_year, postal_code, city, archived_at, created_at').order('full_name')),
+    q(supabase.from('members').select('id, member_no, group_id, full_name, birth_year, postal_code, city, archived_at, created_at').order('full_name')),
     q(supabase.from('group_invites').select('code, group_id, role, name, email, phone, member_id, expires_at, used_at').order('created_at')),
     q(supabase.from('triads').select('id, name, created_at').order('created_at')),
     q(supabase.from('triad_members').select('triad_id, user_id, profiles(full_name, email, phone)')),
@@ -239,17 +231,20 @@ async function loadAll() {
 
   if (state.isAdmin) {
     state.groups = state.allGroups;
-    const [profiles, meta] = await Promise.all([
+    const [profiles, overview, health] = await Promise.all([
       q(supabase.from('profiles').select('id, email, full_name, role, phone').order('email')),
-      q(supabase.from('meetings').select('group_id, meeting_date').order('meeting_date', { ascending: false })),
+      q(supabase.rpc('admin_overview')),
+      q(supabase.rpc('data_health')),
     ]);
     state.profiles = profiles;
-    state.meetingsMeta = meta || [];
+    state.overview = new Map((overview || []).map((o) => [o.group_id, o]));
+    state.health = health;
   } else {
     const mine = new Set(state.leaders.filter((l) => l.user_id === uid).map((l) => l.group_id));
     state.groups = state.allGroups.filter((g) => mine.has(g.id));
     state.profiles = [];
-    state.meetingsMeta = [];
+    state.overview = new Map();
+    state.health = null;
   }
   if (!groupById(state.current)) {
     const saved = store.get('smagrupper-gruppe');
@@ -263,7 +258,8 @@ async function loadMeetings() {
     ? await q(supabase.from('meetings')
       .select('id, meeting_date, attendance(member_id)')
       .eq('group_id', state.current)
-      .order('meeting_date', { ascending: false }))
+      .order('meeting_date', { ascending: false })
+      .limit(100))
     : [];
 }
 
@@ -556,16 +552,16 @@ function chooseDeputy(g) {
 async function inviteLeader(g) {
   const v = await formDialog('Inviter leder', [
     { name: 'name', label: 'Navn', required: true },
-    { name: 'email', label: 'E-post', type: 'email' },
-    { name: 'phone', label: 'Telefon', type: 'tel' },
-  ], 'Lag lenke', 'Gruppen får navnet til lederen. Du får en lenke å sende til personen.');
+    { name: 'email', label: 'E-post', type: 'email', required: true, max: 120 },
+    { name: 'phone', label: 'Telefon', type: 'tel', required: true, max: 20 },
+  ], 'Lag lenke', 'Gruppen får navnet til lederen. E-posten blir lederens innlogging.');
   if (!v) return;
   const phone = normPhone(v.phone);
   if (v.name.length < 2) return toast('Skriv inn navnet.', 'error');
-  if (v.email && !validEmail(v.email)) return toast('E-postadressen ser ikke riktig ut.', 'error');
-  if (phone && !validPhone(phone)) return toast('Telefonnummeret ser ikke riktig ut.', 'error');
+  if (!validEmail(v.email)) return toast('E-postadressen ser ikke riktig ut.', 'error');
+  if (!validPhone(phone)) return toast('Telefonnummeret ser ikke riktig ut.', 'error');
   const { data: code, error } = await supabase.rpc('create_invite', {
-    p_group: g.id, p_role: 'leder', p_name: v.name, p_email: v.email || null, p_phone: phone || null, p_member_id: null,
+    p_group: g.id, p_role: 'leder', p_name: v.name, p_email: v.email.toLowerCase(), p_phone: phone, p_member_id: null,
   });
   if (error) return toast(friendlyError(error), 'error');
   await reload();
@@ -664,6 +660,7 @@ function openPerson(m, { adminList = false } = {}) {
   fact('Bosted', [m.postal_code, m.city].filter(Boolean).join(' '));
   if (adminList) fact('Gruppe', groupName(m.group_id));
   fact('Med siden', formatDate(m.created_at));
+  fact('Deltaker-ID', m.member_no ? `#${m.member_no}` : null);
   if (!adminList) {
     const joined = isoDay(m.created_at);
     const relevant = state.meetings.filter((mt) => mt.meeting_date >= joined);
@@ -720,6 +717,7 @@ function shareSignup(g) {
     el('h2', {}, 'Legg til deltakere'),
     el('p', { class: 'hint', style: 'margin:-4px 0 14px' },
       'Send denne lenken til dem som skal være med. De fyller inn navn, fødselsår og bosted selv, og havner rett i gruppen.'),
+    !g.active ? el('div', { class: 'notice warn' }, 'Gruppen er satt som inaktiv, så lenken virker ikke før den er aktiv igjen.') : null,
     el('div', { class: 'copy-row' }, input, copyButton(link, input)),
     el('div', { class: 'actions', style: 'margin-top:14px' },
       navigator.share && !window.__DEMO__
@@ -747,9 +745,23 @@ function openMemberForm(m = null) {
   $('m-consent').checked = false;
   $('m-consent-field').hidden = !!m;
   $('m-error').hidden = true;
+  $('m-city').readOnly = false;
+  $('m-city-hint').hidden = true;
+  syncMemberCity();
   $('dlg-member').showModal();
   $('m-name').focus();
 }
+
+async function syncMemberCity() {
+  const input = $('m-pc');
+  const code = input.value.replace(/\D/g, '').slice(0, 4);
+  input.value = code;
+  const city = code.length === 4 ? await lookupPostalCode(code) : null;
+  if (city) $('m-city').value = city;
+  $('m-city').readOnly = !!city;
+  $('m-city-hint').hidden = !city;
+}
+$('m-pc').addEventListener('input', syncMemberCity);
 
 $('dlg-member-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -1133,7 +1145,7 @@ function renderMyTriad() {
 // =====================================================================
 
 function lastMeeting(gid) {
-  return state.meetingsMeta.find((m) => m.group_id === gid)?.meeting_date || null;
+  return state.overview.get(gid)?.last_meeting || null;
 }
 
 function groupCard(g) {
@@ -1146,8 +1158,10 @@ function groupCard(g) {
   if (deps.length) deputyLine = el('span', {}, 'Nestleder: ' + deps.map((d) => personName(d.profiles)).join(', '));
   else if (pendingDep.length) deputyLine = el('span', { class: 'muted' }, `Nestleder invitert: ${pendingDep[0].name || ''}`);
   else deputyLine = el('span', { class: 'missing-text' }, el('i', { class: 'dot', 'aria-hidden': 'true' }), 'Ingen nestleder');
+  const avg = state.overview.get(g.id)?.avg_present_90;
   const bits = [
     last ? `Sist samlet ${shortDate(last)}` : 'Ingen samlinger ennå',
+    avg != null ? `snitt ${String(avg).replace('.', ',')} til stede` : null,
     !hasLeader ? (pendingFor(g.id).some((i) => i.role === 'leder') ? 'leder invitert' : 'ingen leder') : null,
     g.active && count >= SPLIT_SUGGEST_AT ? 'klar for å multiplisere' : null,
   ].filter(Boolean);
@@ -1175,10 +1189,46 @@ function renderOverview() {
   if (!active.length) list.append(el('li', { class: 'empty' }, 'Ingen aktive grupper. Trykk «+ Ny gruppe».'));
   for (const g of active) list.append(groupCard(g));
 
+  renderHealth();
+
   $('ov-inactive-box').hidden = inactive.length === 0;
   $('ov-inactive-count').textContent = inactive.length;
   $('ov-inactive').innerHTML = '';
   for (const g of inactive) $('ov-inactive').append(groupCard(g));
+}
+
+function renderHealth() {
+  const box = $('ov-health');
+  box.innerHTML = '';
+  const h = state.health;
+  if (!h) return;
+  const issues = [];
+  if (h.schema_version < SCHEMA_VERSION) issues.push(['Databasen er ikke oppdatert. Kjør den nyeste schema.sql i Supabase.', null]);
+  if (!h.postal_codes) issues.push(['Postnummerregisteret mangler. Kjør postnummer.sql i Supabase.', null]);
+  if (h.groups_without_leader.length) issues.push([`Aktive grupper uten leder: ${h.groups_without_leader.join(', ')}`, null]);
+  if (h.possible_duplicates.length) issues.push([`Mulige dobbeltregistreringer: ${h.possible_duplicates.join(', ')}`, null]);
+  if (h.members_missing_info) issues.push([`${h.members_missing_info} deltakere mangler fødselsår eller bosted`, null]);
+  if (h.archived_over_1_year) issues.push([`${h.archived_over_1_year} har vært arkivert i over ett år og bør slettes`, null]);
+  if (h.accounts_without_access) issues.push([`${h.accounts_without_access} kontoer har ingen tilgang (se Tilgang)`, null]);
+  if (h.expired_invites) {
+    issues.push([`${h.expired_invites} utløpte invitasjoner`, el('button', {
+      class: 'ghost small',
+      onclick: async () => {
+        const { error } = await supabase.rpc('delete_expired_invites');
+        if (error) return toast(friendlyError(error), 'error');
+        toast('Utløpte invitasjoner er slettet.');
+        reload();
+      },
+    }, 'Rydd bort')]);
+  }
+  box.append(el('details', { class: 'card plain fold health' },
+    el('summary', {},
+      el('span', {}, 'Datasjekk'),
+      el('span', { class: issues.length ? 'count warn-count' : 'count' }, issues.length ? `${issues.length} å se på` : 'Alt ser ryddig ut')),
+    issues.length
+      ? el('ul', { class: 'health-list' }, issues.map(([text, action]) => el('li', {}, el('span', {}, text), action)))
+      : el('p', { class: 'hint' }, 'Ingen dobbeltregistreringer, utløpte invitasjoner eller grupper uten leder.'),
+    el('p', { class: 'hint' }, el('a', { href: 'sjekk.html' }, 'Kjør full systemsjekk'))));
 }
 
 $('btn-new-group').addEventListener('click', () => {
@@ -1247,7 +1297,7 @@ function visibleMembers() {
   const s = state.search.toLowerCase();
   return state.members.filter((m) => !m.archived_at &&
     (!state.filterGroup || m.group_id === state.filterGroup) &&
-    (!s || `${m.full_name} ${m.postal_code || ''} ${m.city || ''}`.toLowerCase().includes(s)));
+    (!s || `${m.full_name} ${m.postal_code || ''} ${m.city || ''} #${m.member_no}`.toLowerCase().includes(s)));
 }
 
 function renderMembersList() {
@@ -1273,7 +1323,7 @@ function renderMembersList() {
       el('button', { class: 'prow', onclick: () => openPerson(m, { adminList: true }) },
         el('span', { class: 'pmain' },
           el('span', { class: 'pname' }, m.full_name),
-          el('span', { class: 'psub' }, [memberSub(m), state.filterGroup ? null : groupName(m.group_id)].filter(Boolean).join(' · '))))));
+          el('span', { class: 'psub' }, [memberSub(m), state.filterGroup ? null : groupName(m.group_id), `#${m.member_no}`].filter(Boolean).join(' · '))))));
   }
 }
 
@@ -1470,7 +1520,10 @@ async function showInvite() {
     ? `Du er invitert som nestleder i smågruppen til ${info.group_name}.`
     : 'Du er invitert som leder for en smågruppe. Gruppen får navnet ditt.';
   if (info.name && !$('invite-name').value) $('invite-name').value = info.name;
-  if (info.email && !$('invite-email').value) $('invite-email').value = info.email;
+  const locked = !!info.email;
+  if (locked) $('invite-email').value = info.email;
+  $('invite-email').readOnly = locked;
+  $('invite-email-hint').hidden = !locked;
   const loggedIn = !!state.session;
   $('invite-loggedin').hidden = !loggedIn;
   $('invite-loggedout').hidden = loggedIn;
@@ -1593,7 +1646,7 @@ $('btn-logout').addEventListener('click', async () => {
   await supabase.auth.signOut();
   Object.assign(state, {
     me: null, isAdmin: false, groups: [], allGroups: [], leaders: [], members: [], invites: [], profiles: [],
-    triads: [], triadMembers: [], meetingsMeta: [], current: null, meetings: [], filterGroup: '', search: '',
+    triads: [], triadMembers: [], overview: new Map(), health: null, current: null, meetings: [], filterGroup: '', search: '',
     view: 'home', tab: null,
   });
   $('filter-search').value = '';

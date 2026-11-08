@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="robots" content="noindex">
+  <meta name="robots" content="noindex, nofollow">
   <title>Påmelding til smågruppe</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f5c57'/%3E%3Ccircle cx='10' cy='13' r='3.2' fill='%23fff'/%3E%3Ccircle cx='22' cy='13' r='3.2' fill='%23fff'/%3E%3Ccircle cx='16' cy='21' r='3.2' fill='%23fff'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -15,33 +16,31 @@
   <main class="narrow">
     <div id="setup"></div>
 
-    <section class="card" id="form-card">
+    <section class="card" id="loading">
+      <p class="lead" style="margin:0">Henter gruppen …</p>
+    </section>
+
+    <!-- Uten gyldig lenke -->
+    <section class="card" id="no-link" hidden>
+      <h1>Bruk lenken fra lederen din</h1>
+      <p class="lead">For å bli med i en smågruppe trenger du påmeldingslenken som lederen for gruppen sender deg. Da havner du rett i riktig gruppe.</p>
+      <p class="hint" id="no-link-reason"></p>
+    </section>
+
+    <!-- Skjema -->
+    <section class="card" id="form-card" hidden>
       <h1>Meld deg på smågruppe</h1>
-      <p class="lead">Fyll inn opplysningene under, så blir du lagt inn i riktig gruppe. Det tar under ett minutt.</p>
+      <p class="lead">Du melder deg på smågruppen til <strong id="group-name"></strong>.<span id="group-desc"></span></p>
 
       <form id="signup" novalidate>
-        <div class="field" id="group-field">
-          <label for="group">Hvilken smågruppe skal du være med i?</label>
-          <select id="group" name="group" required>
-            <option value="">Laster grupper …</option>
-          </select>
-          <div class="hint" id="group-desc">Gruppene heter det samme som lederen.</div>
-        </div>
-
-        <div class="notice info" id="group-fixed" hidden>
-          Du melder deg på smågruppen til <strong id="group-fixed-name"></strong>.
-          <button type="button" class="ghost small" id="change-group">Velg en annen gruppe</button>
-        </div>
-
         <div class="field">
           <label for="full_name">Fullt navn</label>
-          <input type="text" id="full_name" name="full_name" autocomplete="name" required maxlength="100">
+          <input type="text" id="full_name" name="full_name" autocomplete="name" required maxlength="100" placeholder="Fornavn og etternavn">
         </div>
 
         <div class="field">
           <label for="birth_year">Fødselsår</label>
           <input type="text" id="birth_year" name="birth_year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="f.eks. 1990" required>
-          <div class="hint">Vi lagrer fødselsår slik at alderen alltid stemmer.</div>
         </div>
 
         <div class="row pc">
@@ -51,7 +50,7 @@
           </div>
           <div class="field">
             <label for="city">Sted</label>
-            <input type="text" id="city" name="city" autocomplete="address-level2" required maxlength="60">
+            <input type="text" id="city" name="city" autocomplete="address-level2" readonly tabindex="-1" placeholder="Fylles ut automatisk">
           </div>
         </div>
 
@@ -63,7 +62,7 @@
 
         <div class="field check">
           <input type="checkbox" id="consent" name="consent" required>
-          <label for="consent">Jeg samtykker til at <span data-org>Bergen Frikirke</span> lagrer opplysningene mine for å organisere smågruppene. Bare gruppelederne mine og administratorer kan se dem. <a href="personvern.html" target="_blank">Les personvernerklæringen</a>.</label>
+          <label for="consent">Jeg samtykker til at <span data-org>Bergen Frikirke</span> lagrer opplysningene mine for å organisere smågruppene. Bare lederne for gruppen min og administratorer kan se dem. <a href="personvern.html" target="_blank" rel="noopener">Les personvernerklæringen</a>.</label>
         </div>
 
         <div class="notice error" id="form-error" hidden></div>
@@ -75,8 +74,8 @@
     <section class="card success" id="done" hidden>
       <div class="mark" aria-hidden="true">✓</div>
       <h1>Takk, <span id="done-name"></span>!</h1>
-      <p class="lead">Du er registrert i smågruppen til <strong id="done-group"></strong>. Lederne kan nå se deg på listen. Du trenger ikke gjøre noe mer.</p>
-      <button type="button" class="secondary" id="again">Registrer en person til</button>
+      <p class="lead">Du er registrert i smågruppen til <strong id="done-group"></strong>. Du trenger ikke gjøre noe mer.</p>
+      <button type="button" class="secondary" id="again">Meld på en person til</button>
     </section>
   </main>
 

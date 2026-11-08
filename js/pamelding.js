@@ -1,152 +1,140 @@
-import { supabase, isConfigured, config, el, friendlyError, notConfiguredBanner } from './felles.js';
+import { supabase, isConfigured, config, el, friendlyError, notConfiguredBanner, lookupPostalCode } from './felles.js';
 
 const $ = (id) => document.getElementById(id);
 document.querySelectorAll('[data-org]').forEach((n) => (n.textContent = config.ORG_NAME));
 
 const form = $('signup');
-const groupSelect = $('group');
-let groups = [];
+const groupId = new URLSearchParams(location.search).get('gruppe') || '';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+let group = null;
+let cityFound = null;
 
-// Lenke rett til en gruppe: index.html?gruppe=<id>
-const params = new URLSearchParams(location.search);
-const presetGroup = params.get('gruppe');
+function showOnly(id) {
+  for (const s of ['loading', 'no-link', 'form-card', 'done']) $(s).hidden = s !== id;
+}
 
-async function loadGroups() {
+async function init() {
   if (!isConfigured) {
     $('setup').append(notConfiguredBanner());
-    groupSelect.innerHTML = '';
-    groupSelect.append(el('option', { value: '' }, 'Ingen grupper ennå'));
+    showOnly('no-link');
     return;
   }
-  const { data, error } = await supabase
-    .from('groups')
-    .select('id, name, description')
-    .eq('active', true)
-    .order('name');
-
-  groupSelect.innerHTML = '';
+  if (!UUID.test(groupId)) {
+    showOnly('no-link');
+    return;
+  }
+  const { data, error } = await supabase.rpc('group_public_info', { p_group: groupId });
   if (error) {
-    showError('Klarte ikke å hente gruppene. ' + friendlyError(error));
+    $('no-link-reason').textContent = friendlyError(error);
+    showOnly('no-link');
     return;
   }
-  groups = data || [];
-  groupSelect.append(el('option', { value: '' }, groups.length ? 'Velg lederens navn' : 'Ingen åpne grupper akkurat nå'));
-  for (const g of groups) groupSelect.append(el('option', { value: g.id }, g.name));
-
-  const preset = groups.find((g) => g.id === presetGroup);
-  if (preset) {
-    groupSelect.value = preset.id;
-    $('group-fixed-name').textContent = preset.name;
-    $('group-fixed').hidden = false;
-    $('group-field').hidden = true;
+  group = data?.[0] || null;
+  if (!group) {
+    $('no-link-reason').textContent = 'Lenken er ikke gyldig lenger. Gruppen kan være lagt ned eller endret. Be lederen om en ny lenke.';
+    showOnly('no-link');
+    return;
   }
-  updateDesc();
+  $('group-name').textContent = group.name;
+  $('group-desc').textContent = group.description ? ` ${group.description}.` : '';
+  showOnly('form-card');
 }
 
-function updateDesc() {
-  const g = groups.find((x) => x.id === groupSelect.value);
-  $('group-desc').textContent = g ? (g.description || '') : 'Gruppene heter det samme som lederen.';
-}
-
-groupSelect.addEventListener('change', updateDesc);
-$('change-group').addEventListener('click', () => {
-  $('group-fixed').hidden = true;
-  $('group-field').hidden = false;
-  groupSelect.focus();
+// ---- Postnummer → sted ----
+let lookupSeq = 0;
+$('postal_code').addEventListener('input', async (e) => {
+  const code = e.target.value.replace(/\D/g, '').slice(0, 4);
+  e.target.value = code;
+  cityFound = null;
+  $('city').value = '';
+  clearFieldError(e.target);
+  if (code.length !== 4) return;
+  const seq = ++lookupSeq;
+  $('city').placeholder = 'Søker …';
+  const city = await lookupPostalCode(code);
+  if (seq !== lookupSeq) return;
+  $('city').placeholder = 'Fylles ut automatisk';
+  if (city) { cityFound = city; $('city').value = city; }
+  else setInvalid(e.target, 'Fant ikke postnummeret. Sjekk at det er riktig.');
 });
 
-function showError(message) {
-  const box = $('form-error');
-  box.textContent = message;
-  box.hidden = !message;
-}
+$('birth_year').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4); });
 
+// ---- Validering ----
+function showError(message) {
+  $('form-error').textContent = message;
+  $('form-error').hidden = !message;
+}
 function setInvalid(input, message) {
   input.setAttribute('aria-invalid', 'true');
   let msg = input.parentElement.querySelector('.error-text');
-  if (!msg) {
-    msg = el('div', { class: 'error-text' });
-    input.parentElement.append(msg);
-  }
+  if (!msg) { msg = el('div', { class: 'error-text' }); input.parentElement.append(msg); }
   msg.textContent = message;
 }
-
+function clearFieldError(input) {
+  input.removeAttribute('aria-invalid');
+  input.parentElement.querySelector('.error-text')?.remove();
+}
 function clearInvalid() {
-  form.querySelectorAll('[aria-invalid]').forEach((i) => i.removeAttribute('aria-invalid'));
-  form.querySelectorAll('.error-text').forEach((m) => m.remove());
+  form.querySelectorAll('[aria-invalid]').forEach(clearFieldError);
   showError('');
 }
 
 function validate() {
   clearInvalid();
-  const v = {
-    group_id: groupSelect.value,
-    full_name: $('full_name').value.trim().replace(/\s+/g, ' '),
-    birth_year: $('birth_year').value.trim(),
-    postal_code: $('postal_code').value.trim(),
-    city: $('city').value.trim(),
-    consent: $('consent').checked,
-  };
+  const name = $('full_name').value.trim().replace(/\s+/g, ' ');
+  const year = Number($('birth_year').value.trim());
+  const pc = $('postal_code').value.trim();
   const thisYear = new Date().getFullYear();
   let firstBad = null;
   const bad = (input, text) => { setInvalid(input, text); firstBad ??= input; };
 
-  if (!v.group_id) {
-    $('group-field').hidden = false;
-    $('group-fixed').hidden = true;
-    bad(groupSelect, 'Velg en gruppe.');
-  }
-  if (v.full_name.length < 2) bad($('full_name'), 'Skriv inn navnet ditt.');
-  const year = Number(v.birth_year);
-  if (!/^\d{4}$/.test(v.birth_year) || year < 1900 || year > thisYear) bad($('birth_year'), 'Skriv fødselsåret med fire siffer, f.eks. 1990.');
-  if (!/^\d{4}$/.test(v.postal_code)) bad($('postal_code'), 'Fire siffer.');
-  if (v.city.length < 2) bad($('city'), 'Skriv inn sted.');
-  if (!v.consent) { showError('Du må krysse av for samtykke for å melde deg på.'); firstBad ??= $('consent'); }
+  if (name.length < 3 || !name.includes(' ') || !/\p{L}/u.test(name)) bad($('full_name'), 'Skriv fornavn og etternavn.');
+  if (!/^\d{4}$/.test($('birth_year').value.trim()) || year < 1900 || year > thisYear) bad($('birth_year'), 'Skriv fødselsåret med fire siffer, f.eks. 1990.');
+  if (!/^\d{4}$/.test(pc)) bad($('postal_code'), 'Fire siffer.');
+  else if (!cityFound) bad($('postal_code'), 'Fant ikke postnummeret. Sjekk at det er riktig.');
+  if (!$('consent').checked) { showError('Du må krysse av for samtykke for å melde deg på.'); firstBad ??= $('consent'); }
 
   if (firstBad) { firstBad.focus(); return null; }
-  return { ...v, birth_year: year };
+  return { name, year, pc };
 }
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  if (!isConfigured) return showError('Nettsiden er ikke koblet til databasen ennå.');
-
-  const values = validate();
-  if (!values) return;
-
-  // Spam-robot fylte ut det skjulte feltet: lat som alt gikk bra
-  if ($('website').value) return showDone(values);
+  if (!group) return;
+  const v = validate();
+  if (!v) return;
+  if ($('website').value) return showDone(v.name); // robot: lat som alt gikk bra
 
   const button = $('submit');
   button.disabled = true;
   button.textContent = 'Sender …';
-  const { error } = await supabase.from('members').insert(values);
+  const { error } = await supabase.rpc('register_member', {
+    p_group: groupId, p_full_name: v.name, p_birth_year: v.year, p_postal_code: v.pc, p_city: cityFound, p_consent: true,
+  });
   button.disabled = false;
   button.textContent = 'Meld meg på';
-
-  if (error) return showError('Noe gikk galt: ' + friendlyError(error));
-  showDone(values);
+  if (error) return showError(friendlyError(error));
+  showDone(v.name);
 });
 
-function showDone(values) {
-  $('done-name').textContent = values.full_name.split(' ')[0];
-  $('done-group').textContent = groups.find((g) => g.id === values.group_id)?.name || 'gruppen';
-  $('form-card').hidden = true;
-  $('done').hidden = false;
+function showDone(name) {
+  $('done-name').textContent = name.split(' ')[0];
+  $('done-group').textContent = group.name;
+  showOnly('done');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// Familiemedlemmer bor ofte samme sted: behold postnummer og sted
 $('again').addEventListener('click', () => {
-  // Familiemedlemmer bor ofte samme sted: behold gruppe, postnummer og sted
-  const keep = { group: groupSelect.value, pc: $('postal_code').value, city: $('city').value };
+  const keep = { pc: $('postal_code').value, city: $('city').value, found: cityFound };
   form.reset();
-  groupSelect.value = keep.group;
   $('postal_code').value = keep.pc;
   $('city').value = keep.city;
+  cityFound = keep.found;
   clearInvalid();
-  $('done').hidden = true;
-  $('form-card').hidden = false;
+  showOnly('form-card');
   $('full_name').focus();
 });
 
-loadGroups();
+init();

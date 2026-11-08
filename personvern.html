@@ -3,7 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
   <title>Personvern – smågrupper</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f5c57'/%3E%3Ccircle cx='10' cy='13' r='3.2' fill='%23fff'/%3E%3Ccircle cx='22' cy='13' r='3.2' fill='%23fff'/%3E%3Ccircle cx='16' cy='21' r='3.2' fill='%23fff'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -16,31 +18,34 @@
       <h1>Personvernerklæring for smågruppene</h1>
 
       <h2>Hvem er ansvarlig?</h2>
-      <p><span data-org>Bergen Frikirke</span> er behandlingsansvarlig for opplysningene. Spørsmål kan sendes til <a data-email href="#">kontakt-e-post</a>.</p>
+      <p><span data-org>Bergen Frikirke</span> er behandlingsansvarlig for opplysningene. Spørsmål kan sendes til <a data-email href="#">kontakt-e-post</a> (<span data-email-text></span>).</p>
 
-      <h2>Hva lagrer vi?</h2>
-      <p>Navn, fødselsår, postnummer, sted og hvilken smågruppe du er med i, i tillegg til tidspunktet du meldte deg på.</p>
+      <h2>Hva lagrer vi om deltakere?</h2>
+      <p>Navn, fødselsår, postnummer, sted og hvilken smågruppe du er med i, tidspunktet du meldte deg på, og et deltakernummer. Lederne kan også registrere hvem som var til stede på samlingene.</p>
+
+      <h2>Hva lagrer vi om ledere?</h2>
+      <p>Navn, e-post, telefonnummer og hvilke grupper og eventuell triade du er leder i. E-posten brukes til innlogging.</p>
 
       <h2>Hvorfor?</h2>
-      <p>For å organisere smågruppene, slik at lederne vet hvem som er med og kan holde kontakt. Opplysningene brukes ikke til noe annet.</p>
+      <p>For å organisere smågruppene, slik at lederne vet hvem som er med og kan holde kontakt, og for at vi som kirke kan følge opp gruppene. Opplysningene brukes ikke til noe annet.</p>
 
       <h2>Grunnlag</h2>
       <p>Vi behandler opplysningene fordi du har samtykket (personvernforordningen artikkel 6 nr. 1 a og artikkel 9 nr. 2 a, siden medlemskap i en menighetsgruppe kan si noe om tro). Du kan trekke samtykket når som helst.</p>
 
       <h2>Hvem kan se opplysningene?</h2>
-      <p>Bare lederen og nestlederen i din gruppe, og et lite antall administratorer i menigheten. Opplysningene deles ikke med andre.</p>
+      <p>Bare lederen og nestlederen i din gruppe, og et lite antall administratorer i menigheten. Ledere i samme triade ser hverandres navn og kontaktinformasjon, men ikke deltakerne i hverandres grupper. Opplysningene deles ikke med andre, og det finnes ingen offentlig liste over gruppene.</p>
 
       <h2>Hvor lagres de?</h2>
       <p>I en database hos Supabase, på servere i EU. Supabase er databehandler for oss.</p>
 
       <h2>Hvor lenge?</h2>
-      <p>Så lenge du er med i en smågruppe. Når du slutter, sletter gruppelederen eller en administrator opplysningene. Vi går gjennom listene minst én gang i året.</p>
+      <p>Så lenge du er med i en smågruppe. Når du slutter, arkiveres opplysningene og slettes senest ett år etter. Vi går gjennom listene minst én gang i året.</p>
 
       <h2>Dine rettigheter</h2>
       <p>Du kan be om innsyn, retting eller sletting, og du kan trekke samtykket. Ta kontakt med gruppelederen din eller <a data-email href="#">kontakt-e-post</a>. Du kan også klage til Datatilsynet.</p>
     </article>
   </main>
-  <footer class="site-footer"><a href="index.html">Tilbake til påmeldingen</a></footer>
+  <footer class="site-footer"><span data-org>Bergen Frikirke</span></footer>
   <script type="module">
     import { config } from './config.js';
     document.querySelectorAll('[data-org]').forEach((n) => (n.textContent = config.ORG_NAME));
@@ -48,6 +53,7 @@
       a.textContent = config.CONTACT_EMAIL;
       a.href = 'mailto:' + config.CONTACT_EMAIL;
     });
+    document.querySelectorAll('[data-email-text]').forEach((n) => n.remove());
   </script>
 </body>
 </html>

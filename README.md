@@ -5,7 +5,7 @@ registrerer oppmøte og kan dele gruppen i to når den vokser.
 
 | Hvem | Hva de ser og gjør |
 |---|---|
-| **Deltakere** | Bare påmeldingsskjemaet. Ingen innlogging. Kan ikke se noe etterpå. |
+| **Deltakere** | Melder seg på via en lenke fra lederen. Ingen innlogging. Kan ikke se noe etterpå. |
 | **Leder / nestleder** | Ser bare sin egen gruppe og sin triade. Registrerer oppmøte, deler påmeldingslenken, arkiverer deltakere, velger nestleder og kan multiplisere gruppen. Nestlederen har samme tilgang som lederen. |
 | **Administrator** | Ser alle grupper og deltakere. Oppretter grupper, inviterer ledere, setter sammen triader og styrer tilgang. |
 
@@ -16,13 +16,15 @@ nettsiden, så ingen kan omgå dem ved å fikle med nettleseren.
 ## Filer
 
 ```
-index.html          Påmeldingsskjemaet (det deltakerne ser)
-oversikt.html       Ledersiden: innlogging, gruppen, oppmøte, administrasjon
-personvern.html     Personvernerklæring (mal – må tilpasses)
-config.js           Her limer du inn Supabase-adressen og -nøkkelen
-css/style.css       Utseende
-js/                 Programkoden
-supabase/schema.sql Databaseoppsett og tilgangsregler
+index.html              Påmeldingsskjemaet (åpnes via lenke fra lederen)
+oversikt.html           Ledersiden: innlogging, gruppen, oppmøte, administrasjon
+sjekk.html              Systemsjekk: tester at nettside og database henger sammen
+personvern.html         Personvernerklæring (mal – må tilpasses)
+config.js               Supabase-adresse og -nøkkel, kirkens navn og kontakt-e-post
+css/style.css           Utseende
+js/                     Programkoden
+supabase/schema.sql     Databaseoppsett, regler for datakvalitet og tilgang
+supabase/postnummer.sql Postnummerregisteret (Bring), brukes til å fylle ut sted
 ```
 
 ---
@@ -36,6 +38,8 @@ supabase/schema.sql Databaseoppsett og tilgangsregler
    **velg en region i EU** (f.eks. Frankfurt). Det er viktig for personvernet.
 3. Når prosjektet er klart: gå til **SQL Editor → New query**, lim inn hele innholdet i
    `supabase/schema.sql` og trykk **Run**. Du skal få «Success».
+4. Gjør det samme med `supabase/postnummer.sql`. Den legger inn alle norske postnumre, slik at
+   sted fylles ut automatisk og alltid blir riktig.
 
 > **Har du allerede kjørt en eldre versjon av filen?** Kjør den nye `schema.sql` på samme måte.
 > Den oppgraderer databasen, og alle deltakere og grupper blir liggende. Grupper som har en
@@ -47,6 +51,8 @@ Nye ledere lager kontoen sin selv via en invitasjonslenke. Derfor:
 
 1. **Authentication → Sign In / Providers**: la **«Allow new users to sign up»** stå **på**.
 2. Under **Email** på samme side: slå **av** **«Confirm email»**.
+3. Sett **minste passordlengde** til 8 tegn (samme side, under passord-innstillingene). Nettsiden
+   krever 8, og da krever Supabase det samme.
 
 Hvorfor er dette trygt? En konto gir i seg selv ingen tilgang til noe som helst. Man ser
 bare en gruppe hvis man har fått en invitasjonslenke fra en leder eller administrator, eller
@@ -69,7 +75,8 @@ deres, med mindre dere setter opp egen e-posttjeneste (se «E-post» nederst).
 
 1. Gå til **Project Settings → API Keys** (og **Data API** for adressen).
 2. Kopier **Project URL** og **Publishable key** (heter «anon public» i eldre prosjekter).
-3. Åpne `config.js` og lim dem inn. Fyll også inn kontakt-e-post.
+3. Åpne `config.js` og lim dem inn. Fyll også inn **CONTACT_EMAIL**. Den vises i
+   personvernerklæringen.
 
 > Publishable-nøkkelen er laget for å ligge åpent på nettsiden. **Bruk aldri
 > «secret» eller «service_role»-nøkkelen** her. Den omgår alle tilgangsregler.
@@ -91,6 +98,18 @@ deres, med mindre dere setter opp egen e-posttjeneste (se «E-post» nederst).
 ### 7. Tilpass personvernerklæringen
 
 Les gjennom `personvern.html` og tilpass den (hvem som er ansvarlig, hvor lenge dere lagrer).
+
+### 8. Kjør systemsjekken
+
+Åpne `https://BRUKERNAVN.github.io/Smaagruppenettside/sjekk.html`. Siden tester den ekte databasen:
+
+- Har databasen riktig versjon, og finnes postnummerregisteret?
+- Er alle data stengt for besøkende uten innlogging?
+- Er innloggingsinnstillingene riktige?
+- Finnes alle sidene?
+
+Alt skal være grønt. Logger du først inn som administrator på ledersiden, sjekker den også dataene.
+Kjør den gjerne igjen etter hver oppdatering.
 
 ---
 
@@ -159,6 +178,29 @@ igjen. Vi ønsker at lederne multipliserer i dialog med lederne for smågruppear
 
 ---
 
+## Datakvalitet: regler i databasen
+
+Reglene ligger i selve databasen, så de gjelder uansett hvordan data kommer inn.
+
+- **Deltaker-ID:** Hver deltaker får et fast nummer (#1, #2 …) som aldri gjenbrukes. Det vises i
+  deltakerdetaljene og i nedlastede lister, og du kan søke på det.
+- **Unik e-post for ledere:** E-posten er lederens innlogging og ID. En invitasjon gjelder én
+  bestemt e-post, og den kan bare godtas av en konto med samme e-post.
+- **Ingen dobbeltregistrering:** Samme navn og fødselsår kan ikke stå to ganger i samme gruppe.
+  Melder noen seg på igjen, skjer det ingenting.
+- **Påkrevde felt ved påmelding:** fullt navn (fornavn og etternavn), fødselsår (1900 til i år),
+  gyldig norsk postnummer og samtykke.
+- **Fast format:** Navn ryddes for doble mellomrom og får stor forbokstav hvis alt er skrevet med
+  små eller store bokstaver. Sted hentes alltid fra postnummeret. Telefon lagres som +47XXXXXXXX
+  og e-post med små bokstaver.
+- **Invitasjoner** krever navn, e-post og telefon. En ny invitasjon til samme e-post erstatter den
+  gamle.
+- **Sammenheng:** Oppmøte kan bare registreres på aktive deltakere i egen gruppe, og ikke fram i
+  tid. En nestleder må være deltaker i samme gruppe. En triade kan bare bestå av ledere.
+- **Datasjekk:** Øverst på Oversikt ser administratoren om noe bør ryddes: grupper uten leder,
+  mulige dobbeltregistreringer, utløpte invitasjoner og deltakere som har vært arkivert i over
+  ett år.
+
 ## Greit å vite
 
 - **E-post:** Uten egen e-posttjeneste sender Supabase bare e-post til medlemmer av
@@ -179,8 +221,13 @@ igjen. Vi ønsker at lederne multipliserer i dialog med lederne for smågruppear
 - **Personvern:** Medlemskap i en menighetsgruppe kan si noe om tro, som er en særlig beskyttet
   opplysning. Bruk EU-region, ha samtykke, og slett folk som har sluttet (arkiverte kan slettes
   for godt). Supabase har en databehandleravtale (DPA) som dere bør godta.
-- **Spam:** Skjemaet har en enkel felle mot roboter. Får dere mye søppel, kan vi legge til en
-  «jeg er ikke en robot»-sjekk.
+- **Ingen offentlig gruppeliste:** Påmeldingssiden fungerer bare med lenken fra lederen. Det finnes
+  ingen liste over grupper eller ledernavn som hvem som helst kan se.
+- **Spam:** Skjemaet har en felle mot roboter, og databasen bremser hvis det kommer svært mange
+  påmeldinger på kort tid.
+- **Kontoer uten tilgang:** Siden alle kan lage en konto, kan det dukke opp kontoer uten tilgang.
+  De ser ingenting. Datasjekken teller dem, og du kan slette dem under **Authentication → Users**
+  i Supabase.
 
 ## Testet
 
@@ -196,7 +243,11 @@ Tilgangsreglene er testet mot Postgres med egne brukere for hver rolle. Testene 
 - Bare administratorer kan lage grupper og triader.
 - En leder ser bare sin egen triade, og aldri deltakerne i andres grupper.
 - Gruppenavnet følger lederen.
+- Besøkende kan bare slå opp postnumre og bruke de fire offentlige funksjonene. Alle tabeller har
+  radtilgang (RLS), og alle funksjoner har fast søkesti.
 
-Oppgradering fra tidligere versjoner er testet uten at data går tapt. Hele flyten er også testet i
+Det er 107 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
+konto, leder, nestleder, leder i annen gruppe og administrator) prøver alt den ikke skal få lov
+til. Oppgradering fra tidligere versjoner er testet uten at data går tapt. Hele flyten er også testet i
 nettleseren på mobil og PC: påmelding, oppmøte, arkivering, nestleder, multiplisering, triader og
 ny leder via invitasjon.

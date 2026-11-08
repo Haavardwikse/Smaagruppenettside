@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="robots" content="noindex">
+  <meta name="robots" content="noindex, nofollow">
   <title>Smågrupper – for ledere</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f5c57'/%3E%3Ccircle cx='10' cy='13' r='3.2' fill='%23fff'/%3E%3Ccircle cx='22' cy='13' r='3.2' fill='%23fff'/%3E%3Ccircle cx='16' cy='21' r='3.2' fill='%23fff'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -68,16 +69,17 @@
             <div class="field">
               <label for="invite-email">E-post</label>
               <input type="email" id="invite-email" autocomplete="username" required>
+              <div class="hint" id="invite-email-hint" hidden>Invitasjonen gjelder denne e-posten. Den blir innloggingen din.</div>
             </div>
             <div class="field">
               <label for="invite-password" id="invite-password-label">Velg et passord</label>
               <input type="password" id="invite-password" autocomplete="new-password" minlength="8" required>
               <div class="hint" id="invite-password-hint">Minst 8 tegn.</div>
             </div>
-            <div class="notice error" id="invite-error" hidden></div>
             <button type="submit" class="block" id="invite-submit">Lag konto og bli med</button>
           </form>
         </div>
+        <div class="notice error" id="invite-error" hidden style="margin-top:14px"></div>
       </div>
       <div id="invite-invalid" hidden>
         <h1>Lenken virker ikke</h1>
@@ -251,6 +253,7 @@
           <button class="small" id="btn-new-group">+ Ny gruppe</button>
         </div>
         <div class="stats compact" id="ov-stats"></div>
+        <div id="ov-health"></div>
         <ul class="glist" id="ov-groups"></ul>
         <details class="card plain fold" id="ov-inactive-box">
           <summary>Inaktive grupper <span class="count" id="ov-inactive-count"></span></summary>
@@ -317,6 +320,7 @@
       <div class="field">
         <label for="m-city">Sted</label>
         <input type="text" id="m-city" maxlength="60">
+        <div class="hint" id="m-city-hint" hidden>Sted følger postnummeret.</div>
       </div>
       <div class="field check" id="m-consent-field">
         <input type="checkbox" id="m-consent">

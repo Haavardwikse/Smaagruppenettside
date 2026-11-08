@@ -1,7 +1,11 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+// Fast versjon av Supabase-biblioteket, så siden ikke endrer seg av seg selv
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm';
 import { config } from '../config.js';
 
-export { config };
+export { config, createClient };
+
+/** Databaseversjonen nettsiden er laget for (se supabase/schema.sql). */
+export const SCHEMA_VERSION = 5;
 
 export const isConfigured =
   !config.SUPABASE_URL.includes('DITT-PROSJEKT') && !config.SUPABASE_KEY.startsWith('LIM-INN');
@@ -51,21 +55,56 @@ export function toast(message, type = 'ok') {
   box._timer = setTimeout(() => box.classList.remove('show'), 3500);
 }
 
-/** Gjør tekniske feilmeldinger forståelige. */
+/** Gjør tekniske feilmeldinger forståelige. Våre egne meldinger fra databasen er allerede på norsk. */
 export function friendlyError(error) {
-  const msg = (error && (error.message || error.error_description)) || String(error);
-  if (/Invalid login credentials/i.test(msg)) return 'Feil e-post eller passord.';
-  if (/Email not confirmed/i.test(msg)) return 'E-postadressen er ikke bekreftet ennå.';
-  if (/foreign key/i.test(msg)) return 'Gruppen har fortsatt medlemmer. Flytt eller slett dem først, eller sett gruppen som inaktiv.';
-  if (/row-level security/i.test(msg)) return 'Du har ikke tilgang til å gjøre dette.';
-  if (/Bare administratorer/i.test(msg)) return 'Bare administratorer kan endre roller.';
-  if (/Failed to fetch|NetworkError/i.test(msg)) return 'Fikk ikke kontakt med serveren. Sjekk nettet og prøv igjen.';
-  if (/Password should be/i.test(msg)) return 'Passordet må ha minst 8 tegn.';
-  if (/already registered|already been registered/i.test(msg)) return 'Det finnes allerede en konto med denne e-posten. Velg «Jeg har konto».';
-  if (/Signups not allowed|signup is disabled/i.test(msg)) return 'Det er ikke åpnet for nye kontoer. Administratoren må slå på «Allow new users to sign up» i Supabase.';
-  if (/Email address not authorized/i.test(msg)) return 'Systemet kan ikke sende e-post til denne adressen ennå. Ta kontakt med administratoren.';
-  if (/rate limit/i.test(msg)) return 'For mange forsøk på kort tid. Vent litt og prøv igjen.';
+  const msg = (error && (error.message || error.error_description || error.msg)) || String(error);
+  const map = [
+    [/Invalid login credentials/i, 'Feil e-post eller passord.'],
+    [/Email not confirmed/i, 'E-postadressen er ikke bekreftet ennå.'],
+    [/members_no_duplicates/i, 'Personen står allerede i denne gruppen.'],
+    [/members_name_ok/i, 'Navnet må ha minst to tegn og inneholde bokstaver.'],
+    [/members_postal_code_ok/i, 'Postnummer må være fire siffer.'],
+    [/members_city_ok/i, 'Stedsnavnet er for kort eller for langt.'],
+    [/members_birth_year_ok/i, 'Fødselsåret ser ikke riktig ut.'],
+    [/profiles_phone_ok|group_invites_phone_ok/i, 'Telefonnummeret ser ikke riktig ut.'],
+    [/profiles_email_ok|group_invites_email_ok/i, 'E-postadressen ser ikke riktig ut.'],
+    [/profiles_email_key/i, 'E-postadressen er allerede i bruk.'],
+    [/members_group_id_fkey|foreign key/i, 'Gruppen har fortsatt deltakere. Flytt eller slett dem først, eller sett gruppen som inaktiv.'],
+    [/row-level security|permission denied/i, 'Du har ikke tilgang til å gjøre dette.'],
+    [/Failed to fetch|NetworkError|Load failed/i, 'Fikk ikke kontakt med serveren. Sjekk nettet og prøv igjen.'],
+    [/Password should be/i, 'Passordet må ha minst 8 tegn.'],
+    [/already registered|already been registered|user_already_exists/i, 'Det finnes allerede en konto med denne e-posten. Velg «Jeg har konto».'],
+    [/Signups not allowed|signup is disabled/i, 'Det er ikke åpnet for nye kontoer. Administratoren må slå på «Allow new users to sign up» i Supabase.'],
+    [/Email address not authorized/i, 'Systemet kan ikke sende e-post til denne adressen ennå. Ta kontakt med administratoren.'],
+    [/rate limit/i, 'For mange forsøk på kort tid. Vent litt og prøv igjen.'],
+    [/Could not find the function|schema cache/i, 'Databasen er ikke oppdatert. Administratoren må kjøre schema.sql på nytt.'],
+  ];
+  for (const [re, text] of map) if (re.test(msg)) return text;
   return msg;
+}
+
+/** Telefon: fjerner mellomrom o.l. Godtar 8 sifre (norsk) eller +landskode. */
+export const normPhone = (s) => {
+  let d = (s || '').replace(/[^0-9+]/g, '');
+  if (d.startsWith('00')) d = '+' + d.slice(2);
+  if (/^\d{8}$/.test(d)) return '+47' + d;
+  if (/^47\d{8}$/.test(d)) return '+' + d;
+  return d;
+};
+export const validPhone = (s) => /^\+[0-9]{8,15}$/.test(normPhone(s));
+export const validEmail = (s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((s || '').trim());
+export function fmtPhone(p) {
+  if (!p) return '';
+  if (/^\+47\d{8}$/.test(p)) return p.slice(3).replace(/(\d{3})(\d{2})(\d{3})/, '$1 $2 $3');
+  if (/^\d{8}$/.test(p)) return p.replace(/(\d{3})(\d{2})(\d{3})/, '$1 $2 $3');
+  return p;
+}
+
+/** Slår opp poststed. Gir null hvis postnummeret ikke finnes. */
+export async function lookupPostalCode(code) {
+  if (!supabase || !/^\d{4}$/.test(code)) return null;
+  const { data } = await supabase.from('postal_codes').select('city').eq('code', code).maybeSingle();
+  return data?.city || null;
 }
 
 /** Bekreftelsesdialog (penere enn confirm() og virker overalt). Gir true/false. */

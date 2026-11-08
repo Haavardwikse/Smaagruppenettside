@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Systemsjekk – smågrupper</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f5c57'/%3E%3Ccircle cx='10' cy='13' r='3.2' fill='%23fff'/%3E%3Ccircle cx='22' cy='13' r='3.2' fill='%23fff'/%3E%3Ccircle cx='16' cy='21' r='3.2' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand"><span data-org>Bergen Frikirke</span><small>Smågrupper – systemsjekk</small></div>
+  </header>
+  <main class="narrow">
+    <section class="card">
+      <h1>Systemsjekk</h1>
+      <p class="lead">Sjekker at nettsiden og databasen henger sammen, at innstillingene er riktige, og at ingen uten innlogging kan se eller endre data. Sjekken endrer ingenting.</p>
+      <div class="notice" id="summary">Kjører sjekken …</div>
+      <ul class="checks" id="checks"></ul>
+      <button class="secondary block" id="rerun" style="margin-top:16px">Kjør på nytt</button>
+    </section>
+    <section class="card" id="admin-card" hidden>
+      <h2>Datasjekk</h2>
+      <ul class="checks" id="admin-checks"></ul>
+    </section>
+  </main>
+  <footer class="site-footer"><a href="oversikt.html">Til ledersiden</a></footer>
+  <script type="module" src="js/sjekk.js"></script>
+</body>
+</html>
