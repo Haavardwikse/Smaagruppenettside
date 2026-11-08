@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Smågrupper – for ledere</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand"><span data-org>Bergen Frikirke</span><small>Smågrupper</small></div>
+    <div class="usermenu" id="usermenu" hidden>
+      <button class="secondary small" id="btn-menu" aria-haspopup="true" aria-expanded="false">
+        <span id="who"></span> <span aria-hidden="true">▾</span>
+      </button>
+      <div class="menu" id="menu" hidden>
+        <div class="menu-who" id="menu-who"></div>
+        <button class="menu-item" id="btn-profile">Min profil</button>
+        <button class="menu-item" id="btn-logout">Logg ut</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div id="setup"></div>
+
+    <!-- Innlogging -->
+    <section class="card auth-card" id="view-login" hidden>
+      <h1>Logg inn</h1>
+      <p class="lead">For ledere, nestledere og administratorer.</p>
+      <form id="login-form">
+        <div class="field">
+          <label for="login-email">E-post</label>
+          <input type="email" id="login-email" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="login-password">Passord</label>
+          <input type="password" id="login-password" autocomplete="current-password" required>
+        </div>
+        <div class="notice error" id="login-error" hidden></div>
+        <button type="submit" class="block">Logg inn</button>
+      </form>
+      <p class="center"><button class="ghost" id="btn-forgot">Glemt passord?</button></p>
+    </section>
+
+    <!-- Invitasjon -->
+    <section class="card auth-card" id="view-invite" hidden>
+      <div id="invite-valid" hidden>
+        <h1>Velkommen som <span id="invite-role">leder</span>!</h1>
+        <p class="lead" id="invite-lead"></p>
+
+        <div id="invite-loggedin" hidden>
+          <p>Du er logget inn som <strong id="invite-me"></strong>.</p>
+          <button class="block" id="invite-accept">Godta og gå til gruppen</button>
+        </div>
+
+        <div id="invite-loggedout">
+          <div class="segmented" role="tablist">
+            <button type="button" role="tab" aria-selected="true" data-invmode="new">Jeg er ny her</button>
+            <button type="button" role="tab" aria-selected="false" data-invmode="existing">Jeg har konto</button>
+          </div>
+          <form id="invite-form">
+            <div class="field" id="invite-name-field">
+              <label for="invite-name">Navnet ditt</label>
+              <input type="text" id="invite-name" autocomplete="name" maxlength="100">
+            </div>
+            <div class="field">
+              <label for="invite-email">E-post</label>
+              <input type="email" id="invite-email" autocomplete="username" required>
+            </div>
+            <div class="field">
+              <label for="invite-password" id="invite-password-label">Velg et passord</label>
+              <input type="password" id="invite-password" autocomplete="new-password" minlength="8" required>
+              <div class="hint" id="invite-password-hint">Minst 8 tegn.</div>
+            </div>
+            <div class="notice error" id="invite-error" hidden></div>
+            <button type="submit" class="block" id="invite-submit">Lag konto og bli med</button>
+          </form>
+        </div>
+      </div>
+      <div id="invite-invalid" hidden>
+        <h1>Lenken virker ikke</h1>
+        <p class="lead">Invitasjonen er brukt, utløpt eller skrevet feil. Be lederen eller en administrator om en ny lenke.</p>
+        <a class="btn secondary" href="oversikt.html">Til innlogging</a>
+      </div>
+    </section>
+
+    <!-- Nytt passord -->
+    <section class="card auth-card" id="view-recovery" hidden>
+      <h1>Velg nytt passord</h1>
+      <form id="recovery-form">
+        <div class="field">
+          <label for="recovery-password">Nytt passord</label>
+          <input type="password" id="recovery-password" autocomplete="new-password" minlength="8" required>
+          <div class="hint">Minst 8 tegn.</div>
+        </div>
+        <button type="submit" class="block">Lagre passord</button>
+      </form>
+    </section>
+
+    <!-- Uten tilgang -->
+    <section class="card auth-card" id="view-noaccess" hidden>
+      <h1>Du har ikke fått tilgang ennå</h1>
+      <p class="lead">Du er logget inn, men er ikke leder i noen gruppe. Har du fått en invitasjonslenke, åpner du den. Ellers kan du ta kontakt med en administrator.</p>
+    </section>
+
+    <!-- Hovedvisning -->
+    <section id="view-app" hidden>
+      <nav class="tabs" role="tablist" id="tabs"></nav>
+
+      <!-- ============ GRUPPE ============ -->
+      <div data-panel="group" class="panel narrow-panel">
+        <button class="ghost back" id="group-back" hidden>← Alle grupper</button>
+        <div id="group-switch" class="group-switch"></div>
+
+        <div id="group-home">
+          <div class="group-head">
+            <div class="eyebrow">Smågruppe</div>
+            <h1 id="g-name"></h1>
+            <div class="meta" id="g-meta"></div>
+          </div>
+
+          <div class="leaders-card" id="g-leaders"></div>
+          <div id="split-hint"></div>
+
+          <button class="block big" id="btn-attend"><span aria-hidden="true">✓</span> Registrer oppmøte</button>
+
+          <div class="card plain">
+            <div class="card-head">
+              <h2>Deltakere <span class="count" id="g-count"></span></h2>
+              <button class="ghost" id="btn-add">+ Legg til</button>
+            </div>
+            <ul class="plist" id="participants"></ul>
+          </div>
+
+          <details class="card plain fold" id="meetings-box">
+            <summary>Tidligere samlinger <span class="count" id="meetings-count"></span></summary>
+            <ul class="mlist" id="meetings"></ul>
+          </details>
+
+          <details class="card plain fold" id="archived-box">
+            <summary>Arkiverte <span class="count" id="archived-count"></span></summary>
+            <p class="hint">Arkiverte deltakere vises ikke i gruppen og ved oppmøte. Slett dem når de ikke lenger skal være registrert.</p>
+            <ul class="plist" id="archived"></ul>
+          </details>
+
+          <div class="quiet-links">
+            <button class="ghost small" id="btn-split">Multipliser gruppen</button>
+            <button class="ghost small" id="btn-why">Hvorfor multiplisere?</button>
+            <button class="ghost small" id="btn-export-group">Last ned liste</button>
+          </div>
+          <div class="quiet-links admin-only" id="group-admin" hidden>
+            <span class="quiet-label">Administrer:</span>
+            <button class="ghost small" id="btn-edit-group">Endre beskrivelse</button>
+            <button class="ghost small" id="btn-invite-leader">Inviter leder</button>
+            <button class="ghost small danger-text" id="btn-delete-group">Slett gruppe</button>
+          </div>
+        </div>
+
+        <!-- Oppmøte -->
+        <div id="attend" hidden>
+          <button class="ghost back" id="attend-back">← Tilbake</button>
+          <h1>Oppmøte</h1>
+          <div class="field" style="max-width:260px">
+            <label for="attend-date">Dato</label>
+            <input type="date" id="attend-date">
+            <div class="hint" id="attend-existing"></div>
+          </div>
+          <div class="attend-bar">
+            <span id="attend-count"></span>
+            <button class="ghost small" id="attend-all">Alle til stede</button>
+          </div>
+          <ul class="attend-list" id="attend-list"></ul>
+          <div class="sticky-actions">
+            <button class="block" id="attend-save">Lagre oppmøte</button>
+            <button class="ghost small danger-text" id="attend-delete" hidden>Slett denne samlingen</button>
+          </div>
+        </div>
+
+        <!-- Multipliser -->
+        <div id="split" hidden>
+          <button class="ghost back" id="split-back">← Avbryt</button>
+          <div class="steps" id="split-steps">
+            <span data-step="1">1. Ny leder</span><span data-step="2">2. Fordel</span><span data-step="3">3. Ferdig</span>
+          </div>
+
+          <div data-splitstep="1">
+            <h1>Multipliser gruppen</h1>
+            <p class="lead">Gruppen deles i to, og den nye gruppen får navnet til den nye lederen.
+              <button class="ghost inline" data-why>Hvorfor multiplisere?</button></p>
+            <p class="soft-note">Vi ønsker at dere gjør dette i dialog med lederne for smågruppearbeidet.</p>
+            <fieldset class="field choices">
+              <legend class="label">Hvem skal lede den nye gruppen?</legend>
+              <div id="split-leader-options"></div>
+            </fieldset>
+            <div id="split-new-leader" hidden>
+              <div class="field">
+                <label for="split-invite-name">Navn</label>
+                <input type="text" id="split-invite-name" maxlength="100" autocomplete="off">
+              </div>
+              <div class="row">
+                <div class="field">
+                  <label for="split-invite-email">E-post</label>
+                  <input type="email" id="split-invite-email" maxlength="120" autocomplete="off">
+                </div>
+                <div class="field">
+                  <label for="split-invite-phone">Telefon</label>
+                  <input type="tel" id="split-invite-phone" inputmode="tel" maxlength="20" autocomplete="off">
+                </div>
+              </div>
+              <p class="hint">Du får en lenke å sende til den nye lederen. Lenken gir tilgang til den nye gruppen.</p>
+            </div>
+            <button class="block" id="split-next">Neste: fordel deltakerne</button>
+          </div>
+
+          <div data-splitstep="2" hidden>
+            <h1>Fordel deltakerne</h1>
+            <p class="lead">Trykk på en person for å flytte vedkommende til den andre gruppen.</p>
+            <div class="split-totals" id="split-totals"></div>
+            <button class="ghost small" id="split-by-postcode">Foreslå fordeling etter bosted</button>
+            <ul class="split-list" id="split-list"></ul>
+            <div class="sticky-actions">
+              <button class="block" id="split-confirm">Multipliser</button>
+            </div>
+          </div>
+
+          <div data-splitstep="3" hidden>
+            <div class="success">
+              <div class="mark" aria-hidden="true">✓</div>
+              <h1>Gruppen er multiplisert!</h1>
+              <p class="lead" id="split-result"></p>
+            </div>
+            <button class="block" id="split-send" hidden>Send invitasjonen</button>
+            <button class="block secondary" id="split-done">Tilbake til gruppen</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ TRIADE (leder) ============ -->
+      <div data-panel="triad" class="panel narrow-panel" hidden>
+        <h1>Triade</h1>
+        <p class="lead">En triade er tre smågruppeledere som støtter, oppmuntrer og ber for hverandre.</p>
+        <div id="my-triad"></div>
+      </div>
+
+      <!-- ============ OVERSIKT (admin) ============ -->
+      <div data-panel="overview" class="panel narrow-panel" hidden>
+        <div class="panel-head">
+          <h1>Oversikt</h1>
+          <button class="small" id="btn-new-group">+ Ny gruppe</button>
+        </div>
+        <div class="stats compact" id="ov-stats"></div>
+        <ul class="glist" id="ov-groups"></ul>
+        <details class="card plain fold" id="ov-inactive-box">
+          <summary>Inaktive grupper <span class="count" id="ov-inactive-count"></span></summary>
+          <ul class="glist" id="ov-inactive"></ul>
+        </details>
+      </div>
+
+      <!-- ============ DELTAKERE (admin) ============ -->
+      <div data-panel="members" class="panel narrow-panel" hidden>
+        <div class="panel-head">
+          <h1>Deltakere</h1>
+          <button class="secondary small" id="btn-export">Last ned</button>
+        </div>
+        <div class="toolbar">
+          <input type="search" id="filter-search" placeholder="Søk på navn, postnummer eller sted" aria-label="Søk">
+          <select id="filter-group" aria-label="Gruppe"></select>
+        </div>
+        <p class="hint" id="members-summary"></p>
+        <div class="card plain">
+          <ul class="plist" id="members-list"></ul>
+        </div>
+      </div>
+
+      <!-- ============ TRIADER (admin) ============ -->
+      <div data-panel="triads" class="panel narrow-panel" hidden>
+        <div class="panel-head">
+          <h1>Triader</h1>
+          <button class="small" id="btn-new-triad">+ Ny triade</button>
+        </div>
+        <p class="lead">Tre smågruppeledere som støtter hverandre. Lederne ser sin egen triade under «Triade».</p>
+        <div id="triads-list"></div>
+        <p class="hint" id="triads-missing"></p>
+      </div>
+
+      <!-- ============ TILGANG (admin) ============ -->
+      <div data-panel="people" class="panel narrow-panel" hidden>
+        <h1>Tilgang</h1>
+        <p class="lead">Alle som har konto. Nye ledere får tilgang via en invitasjonslenke fra gruppen.</p>
+        <div class="card plain">
+          <ul class="plist" id="people-list"></ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Dialog: deltaker (rediger, eller admin legger inn manuelt) -->
+  <dialog id="dlg-member">
+    <form method="dialog" id="dlg-member-form">
+      <h2 id="dlg-member-title">Rediger deltaker</h2>
+      <div class="field">
+        <label for="m-name">Navn</label>
+        <input type="text" id="m-name" required maxlength="100" autocomplete="off">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="m-year">Fødselsår</label>
+          <input type="text" id="m-year" inputmode="numeric" maxlength="4">
+        </div>
+        <div class="field">
+          <label for="m-pc">Postnr.</label>
+          <input type="text" id="m-pc" inputmode="numeric" maxlength="4">
+        </div>
+      </div>
+      <div class="field">
+        <label for="m-city">Sted</label>
+        <input type="text" id="m-city" maxlength="60">
+      </div>
+      <div class="field check" id="m-consent-field">
+        <input type="checkbox" id="m-consent">
+        <label for="m-consent">Personen har sagt ja til at vi lagrer dette.</label>
+      </div>
+      <div class="notice error" id="m-error" hidden></div>
+      <div class="actions">
+        <button type="submit" value="save" id="m-save">Lagre</button>
+        <button type="submit" value="cancel" class="secondary" formnovalidate>Avbryt</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Dialog: detaljer om deltaker -->
+  <dialog id="dlg-person">
+    <h2 id="p-name"></h2>
+    <dl class="facts" id="p-facts"></dl>
+    <div id="p-extra"></div>
+    <div class="actions" id="p-actions"></div>
+  </dialog>
+
+  <!-- Dialog: endre gruppe (admin) -->
+  <dialog id="dlg-group">
+    <form method="dialog" id="dlg-group-form">
+      <h2>Endre gruppe</h2>
+      <p class="hint">Gruppen heter det samme som lederen, og navnet oppdateres automatisk.</p>
+      <div class="field">
+        <label for="dlg-group-desc">Beskrivelse</label>
+        <input type="text" id="dlg-group-desc" maxlength="300" placeholder="f.eks. Tirsdager kl. 19 på Nesttun">
+      </div>
+      <div class="field check">
+        <input type="checkbox" id="dlg-group-active">
+        <label for="dlg-group-active">Aktiv (vises i påmeldingsskjemaet)</label>
+      </div>
+      <div class="actions">
+        <button type="submit" value="save">Lagre</button>
+        <button type="submit" value="cancel" class="secondary" formnovalidate>Avbryt</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Dialog: min profil -->
+  <dialog id="dlg-profile">
+    <form method="dialog" id="dlg-profile-form">
+      <h2>Min profil</h2>
+      <div class="field">
+        <label for="dlg-profile-name">Navn</label>
+        <input type="text" id="dlg-profile-name" maxlength="100">
+        <div class="hint">Gruppen din heter det samme som deg.</div>
+      </div>
+      <div class="field">
+        <label for="dlg-profile-phone">Telefon</label>
+        <input type="tel" id="dlg-profile-phone" inputmode="tel" autocomplete="tel" maxlength="20">
+      </div>
+      <div class="field">
+        <label for="dlg-profile-pw">Nytt passord (la stå tomt for å beholde)</label>
+        <input type="password" id="dlg-profile-pw" autocomplete="new-password" minlength="8">
+      </div>
+      <div class="actions">
+        <button type="submit" value="save">Lagre</button>
+        <button type="submit" value="cancel" class="secondary" formnovalidate>Avbryt</button>
+      </div>
+    </form>
+  </dialog>
+
+  <footer class="site-footer">
+    <a href="index.html">Påmeldingsskjema</a> · <a href="personvern.html">Personvern</a>
+  </footer>
+
+  <script type="module" src="js/oversikt.js"></script>
+</body>
+</html>
