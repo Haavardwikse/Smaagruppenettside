@@ -170,6 +170,24 @@
             <input type="date" id="attend-date">
             <div class="hint" id="attend-existing"></div>
           </div>
+          <div class="meet-line">
+            <span id="attend-summary"></span>
+            <button type="button" class="ghost small" id="attend-details-toggle" aria-expanded="false" aria-controls="attend-details">Endre</button>
+          </div>
+          <div class="meet-edit" id="attend-details" hidden>
+            <div class="field">
+              <label for="attend-start">Starttid</label>
+              <input type="time" id="attend-start" step="300">
+            </div>
+            <div class="field">
+              <label for="attend-hours">Timer</label>
+              <input type="number" id="attend-hours" min="0.5" max="12" step="0.5" inputmode="decimal">
+            </div>
+            <div class="field">
+              <label for="attend-mode">Gjennomført</label>
+              <select id="attend-mode"><option>Fysisk</option><option>Digitalt</option></select>
+            </div>
+          </div>
           <div class="attend-bar">
             <span id="attend-count"></span>
             <button class="ghost small" id="attend-all">Alle til stede</button>
@@ -251,7 +269,10 @@
       <div data-panel="overview" class="panel narrow-panel" hidden>
         <div class="panel-head">
           <h1>Oversikt</h1>
-          <button class="small" id="btn-new-group">+ Ny gruppe</button>
+          <div class="head-actions">
+            <button class="secondary small" id="btn-export-attendance">Eksporter</button>
+            <button class="small" id="btn-new-group">+ Ny gruppe</button>
+          </div>
         </div>
         <div class="stats compact" id="ov-stats"></div>
         <div id="ov-health"></div>
@@ -318,6 +339,13 @@
         <label for="m-name">Navn</label>
         <input type="text" id="m-name" required maxlength="100" autocomplete="off">
       </div>
+      <fieldset class="field gender-field">
+        <legend class="label">Kjønn</legend>
+        <div class="choice-row" id="m-gender">
+          <label class="choice-opt"><input type="radio" name="m-gender" value="mann"> Mann</label>
+          <label class="choice-opt"><input type="radio" name="m-gender" value="kvinne"> Kvinne</label>
+        </div>
+      </fieldset>
       <div class="row">
         <div class="field">
           <label for="m-year">Fødselsår</label>

@@ -126,7 +126,12 @@ multipliseres. Har en gruppe to ledere, heter den «Ingrid Berge og Ola Hansen»
 
 Administratorer har fire faner:
 
-- **Oversikt:** Alle grupper som kort, med nestleder, antall deltakere og når gruppen sist samlet seg.
+- **Oversikt:** **Eksporter** gir en mappe (zip) med én Excel-fil per gruppe, i samme oppsett som
+  fremmøtearket: dato, starttid, «Hvordan er samlingen gjennomført?» og timer øverst, deretter én rad
+  per deltaker (navn, postnummer, poststed, telefon, kjønn, fødselsår) med «x» for oppmøte. Velg år
+  eller egne datoer. Filene heter det samme som gruppene. Deltakere som har sluttet, men var med i
+  perioden, kommer også med.
+  Under knappene: alle grupper som kort, med nestleder, antall deltakere og når gruppen sist samlet seg.
   Grupper uten nestleder har en liten gul prikk. Trykk på en gruppe for å se den slik lederen ser
   den. Nederst i gruppen kan du endre beskrivelse, invitere leder eller slette en tom gruppe.
   Med **+ Ny gruppe** velger du en leder som har konto, eller inviterer en ny.
@@ -151,7 +156,9 @@ På **Gruppen** ser lederen:
 
 - **Leder og nestleder** med telefon og e-post. Mangler gruppen nestleder, står det «Ingen
   nestleder ennå» med knappen **Velg nestleder**.
-- **Registrer oppmøte:** Trykk på dem som er til stede og lagre. Under **Tidligere samlinger**
+- **Registrer oppmøte:** Trykk på dem som er til stede og lagre. Under datoen står starttid, timer
+  og om samlingen var fysisk eller digital (f.eks. «Kl. 19:00 · 2 timer · Fysisk»). Det arves fra
+  forrige samling, så trykk **Endre** bare når noe var annerledes. Under **Tidligere samlinger**
   kan du åpne og rette en samling.
 - **Deltakerne:** Prikkene viser de siste samlingene, og en fylt prikk betyr til stede.
   Trykk på en person for å redigere eller arkivere.
@@ -196,7 +203,7 @@ Reglene ligger i selve databasen, så de gjelder uansett hvordan data kommer inn
   bestemt e-post, og den kan bare godtas av en konto med samme e-post.
 - **Ingen dobbeltregistrering:** Samme navn og fødselsår kan ikke stå to ganger i samme gruppe.
   Melder noen seg på igjen, skjer det ingenting.
-- **Påkrevde felt ved påmelding:** fullt navn (fornavn og etternavn), fødselsår (1900 til i år),
+- **Påkrevde felt ved påmelding:** fullt navn (fornavn og etternavn), fødselsår (1900 til i år), kjønn (mann/kvinne),
   gyldig norsk postnummer og samtykke.
 - **Fast format:** Navn ryddes for doble mellomrom og får stor forbokstav hvis alt er skrevet med
   små eller store bokstaver. Sted hentes alltid fra postnummeret. Telefon lagres som +47XXXXXXXX
@@ -255,7 +262,7 @@ Tilgangsreglene er testet mot Postgres med egne brukere for hver rolle. Testene 
 - Besøkende kan bare slå opp postnumre og bruke de fire offentlige funksjonene. Alle tabeller har
   radtilgang (RLS), og alle funksjoner har fast søkesti.
 
-Det er 130 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
+Det er 155 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
 konto, leder, nestleder, leder i annen gruppe og administrator) prøver alt den ikke skal få lov
 til. Oppgradering fra tidligere versjoner er testet uten at data går tapt. Hele flyten er også testet i
 nettleseren på mobil og PC: påmelding, oppmøte, arkivering, nestleder, multiplisering, triader og

@@ -87,6 +87,7 @@ const deputiesOf = (gid) => state.leaders.filter((l) => l.group_id === gid && l.
 const pendingFor = (gid) => state.invites.filter((i) => i.group_id === gid);
 const pendingDeputies = (gid) => pendingFor(gid).filter((i) => i.role === 'nestleder');
 const hasDeputy = (gid) => deputiesOf(gid).length > 0;
+const genderLabel = (g) => (g === 'mann' ? 'Mann' : g === 'kvinne' ? 'Kvinne' : '');
 const roleLabel = (r) => (r === 'nestleder' ? 'Nestleder' : r === 'admin' ? 'Administrator' : 'Leder');
 
 
@@ -156,9 +157,9 @@ function downloadCsv(rows, label) {
     if (/^[=+\-@]/.test(s)) s = "'" + s;
     return `"${s.replace(/"/g, '""')}"`;
   };
-  const header = ['Deltaker-ID', 'Navn', 'Fødselsår', 'Alder', 'Postnummer', 'Sted', 'Gruppe', 'Registrert'];
+  const header = ['Deltaker-ID', 'Navn', 'Kjønn', 'Fødselsår', 'Alder', 'Postnummer', 'Sted', 'Gruppe', 'Registrert'];
   const lines = [header, ...rows.map((m) => [
-    m.member_no, m.full_name, m.birth_year, m.birth_year ? ageFromYear(m.birth_year) : '', m.postal_code, m.city,
+    m.member_no, m.full_name, genderLabel(m.gender), m.birth_year, m.birth_year ? ageFromYear(m.birth_year) : '', m.postal_code, m.city,
     groupName(m.group_id), new Date(m.created_at).toLocaleDateString('nb-NO'),
   ])].map((r) => r.map(safe).join(';'));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
@@ -215,7 +216,7 @@ async function loadAll() {
     q(supabase.from('profiles').select('id, email, full_name, role, phone').eq('id', uid).maybeSingle()),
     q(supabase.from('groups').select('id, name, description, active, created_at').order('name')),
     q(supabase.from('group_leaders').select('group_id, user_id, role, member_id, profiles(full_name, email, phone)')),
-    q(supabase.from('members').select('id, member_no, group_id, full_name, birth_year, postal_code, city, archived_at, created_at').order('full_name')),
+    q(supabase.from('members').select('id, member_no, group_id, full_name, birth_year, gender, postal_code, city, archived_at, created_at').order('full_name')),
     q(supabase.from('group_invites').select('code, group_id, role, name, email, phone, member_id, expires_at, used_at').order('created_at')),
     q(supabase.from('triads').select('id, name, created_at').order('created_at')),
     q(supabase.from('triad_members').select('triad_id, user_id, profiles(full_name, email, phone)')),
@@ -257,7 +258,7 @@ async function loadAll() {
 async function loadMeetings() {
   state.meetings = state.current
     ? await q(supabase.from('meetings')
-      .select('id, meeting_date, attendance(member_id)')
+      .select('id, meeting_date, start_time, hours, mode, attendance(member_id)')
       .eq('group_id', state.current)
       .order('meeting_date', { ascending: false })
       .limit(100))
@@ -659,6 +660,7 @@ function openPerson(m, { adminList = false } = {}) {
   const facts = $('p-facts');
   facts.innerHTML = '';
   const fact = (label, value) => value && facts.append(el('dt', {}, label), el('dd', {}, value));
+  fact('Kjønn', genderLabel(m.gender) || 'Ikke oppgitt');
   fact('Alder', m.birth_year ? `${ageFromYear(m.birth_year)} år (født ${m.birth_year})` : null);
   fact('Bosted', [m.postal_code, m.city].filter(Boolean).join(' '));
   if (adminList) fact('Gruppe', groupName(m.group_id));
@@ -719,7 +721,7 @@ function shareSignup(g) {
   const dlg = openDialog(
     el('h2', {}, 'Legg til deltakere'),
     el('p', { class: 'hint', style: 'margin:-4px 0 14px' },
-      'Send denne lenken til dem som skal være med. De fyller inn navn, fødselsår og bosted selv, og havner rett i gruppen.'),
+      'Send denne lenken til dem som skal være med. De fyller inn navn, kjønn, fødselsår og bosted selv, og havner rett i gruppen.'),
     !g.active ? el('div', { class: 'notice warn' }, 'Gruppen er satt som inaktiv, så lenken virker ikke før den er aktiv igjen.') : null,
     el('div', { class: 'copy-row' }, input, copyButton(link, input)),
     el('div', { class: 'actions', style: 'margin-top:14px' },
@@ -743,6 +745,7 @@ function openMemberForm(m = null) {
   $('m-save').textContent = m ? 'Lagre' : 'Legg inn';
   $('m-name').value = m?.full_name || '';
   $('m-year').value = m?.birth_year || '';
+  document.querySelectorAll('input[name=m-gender]').forEach((r) => { r.checked = r.value === m?.gender; });
   $('m-pc').value = m?.postal_code || '';
   $('m-city').value = m?.city || '';
   $('m-consent').checked = false;
@@ -773,10 +776,12 @@ $('dlg-member-form').addEventListener('submit', async (e) => {
   const v = {
     full_name: $('m-name').value.trim().replace(/\s+/g, ' '),
     birth_year: $('m-year').value.trim() ? Number($('m-year').value.trim()) : null,
+    gender: document.querySelector('input[name=m-gender]:checked')?.value || null,
     postal_code: $('m-pc').value.trim() || null,
     city: $('m-city').value.trim() || null,
   };
   if (v.full_name.length < 2) return err('Skriv inn navnet.');
+  if (!v.gender) return err('Velg mann eller kvinne.');
   if (v.birth_year !== null && (!(v.birth_year >= 1900) || v.birth_year > new Date().getFullYear())) return err('Fødselsår må være fire siffer, f.eks. 1990.');
   if (v.postal_code && !/^\d{4}$/.test(v.postal_code)) return err('Postnummer må være fire siffer.');
   if (v.city && v.city.length < 2) return err('Sted er for kort.');
@@ -840,7 +845,7 @@ function renderMeetings() {
     list.append(el('li', {},
       el('button', { class: 'mrow', onclick: () => openAttend(mt.meeting_date) },
         el('span', {}, longDate(mt.meeting_date)),
-        el('span', { class: 'psub' }, `${mt.attendance.length} til stede`))));
+        el('span', { class: 'psub' }, `${mt.attendance.length} til stede · kl. ${hhmm(mt.start_time)}`))));
   }
 }
 
@@ -889,8 +894,36 @@ function openAttend(date = today()) {
   setView('attend');
 }
 
+const hhmm = (t) => String(t || '19:00').slice(0, 5);
+const hoursText = (h) => {
+  const n = Number(h);
+  return `${String(n).replace('.', ',')} ${n === 1 ? 'time' : 'timer'}`;
+};
+
+function updateMeetSummary() {
+  const start = $('attend-start').value || '19:00';
+  const hours = Number($('attend-hours').value) || 2;
+  $('attend-summary').textContent = `Kl. ${start} · ${hoursText(hours)} · ${$('attend-mode').value}`;
+}
+
+function setMeetDetails(src) {
+  $('attend-start').value = hhmm(src?.start_time);
+  $('attend-hours').value = src?.hours != null ? Number(src.hours) : 2;
+  $('attend-mode').value = src?.mode || 'Fysisk';
+  updateMeetSummary();
+}
+
+function toggleMeetDetails(open) {
+  $('attend-details').hidden = !open;
+  $('attend-details-toggle').hidden = open;
+  $('attend-details-toggle').setAttribute('aria-expanded', String(open));
+}
+
 function loadAttendForDate() {
   const mt = state.meetings.find((x) => x.meeting_date === state.attend.date);
+  // Ny samling: samme tid som forrige samling (listen er sortert med nyeste først).
+  setMeetDetails(mt || state.meetings[0] || null);
+  toggleMeetDetails(false);
   state.attend.meetingId = mt?.id || null;
   state.attend.present = new Set(mt ? mt.attendance.map((a) => a.member_id) : []);
   $('attend-existing').textContent = mt ? 'Oppmøte er allerede registrert denne dagen. Du kan endre det.' : '';
@@ -929,6 +962,9 @@ function updateAttendCount() {
 }
 
 $('btn-attend').addEventListener('click', () => openAttend());
+$('attend-details-toggle').addEventListener('click', () => { toggleMeetDetails(true); $('attend-start').focus(); });
+['attend-start', 'attend-hours', 'attend-mode'].forEach((id) => $(id).addEventListener('input', updateMeetSummary));
+$('attend-mode').addEventListener('change', updateMeetSummary);
 $('attend-back').addEventListener('click', () => setView('home'));
 $('attend-date').addEventListener('change', (e) => {
   if (!e.target.value) return;
@@ -947,9 +983,16 @@ $('attend-save').addEventListener('click', async () => {
   if (!date) return toast('Velg en dato.', 'error');
   if (date > today()) return toast('Datoen kan ikke være fram i tid.', 'error');
   const ids = activeIn(state.current).filter((m) => state.attend.present.has(m.id)).map((m) => m.id);
+  const start = $('attend-start').value;
+  const hours = Number(String($('attend-hours').value).replace(',', '.'));
+  if (!/^\d{2}:\d{2}/.test(start)) { toggleMeetDetails(true); return toast('Skriv inn starttid, f.eks. 19:00.', 'error'); }
+  if (!(hours >= 0.5 && hours <= 12)) { toggleMeetDetails(true); return toast('Antall timer må være mellom 0,5 og 12.', 'error'); }
   const btn = $('attend-save');
   btn.disabled = true;
-  const { error } = await supabase.rpc('save_attendance', { p_group: state.current, p_date: date, p_member_ids: ids });
+  const { error } = await supabase.rpc('save_attendance', {
+    p_group: state.current, p_date: date, p_member_ids: ids,
+    p_start: start.slice(0, 5), p_hours: hours, p_mode: $('attend-mode').value,
+  });
   btn.disabled = false;
   if (error) return toast(friendlyError(error), 'error');
   toast(`Oppmøte lagret: ${ids.length} av ${activeIn(state.current).length} til stede.`);
@@ -1531,6 +1574,91 @@ function invitePerson() {
 }
 
 $('btn-invite').addEventListener('click', invitePerson);
+
+// ---- Eksport av fremmøte: én Excel-fil per gruppe i en mappe ----
+
+async function fetchAllPages(build) {
+  const size = window.__EXPORT_PAGE__ || 1000; // Supabase gir maks 1000 rader per kall
+  const out = [];
+  for (let from = 0; ; from += size) {
+    const rows = await q(build().range(from, from + size - 1));
+    out.push(...rows);
+    if (rows.length < size) return out;
+  }
+}
+
+function exportAttendance() {
+  const year = new Date().getFullYear();
+  const years = [year, year - 1, year - 2];
+  const errBox = el('div', { class: 'notice error', hidden: true });
+  const period = el('select', { id: 'ex-period' },
+    years.map((y) => el('option', { value: String(y) }, `${y} (hele året)`)),
+    el('option', { value: 'custom' }, 'Velg datoer selv'));
+  const from = el('input', { type: 'date', id: 'ex-from', value: `${year}-01-01` });
+  const to = el('input', { type: 'date', id: 'ex-to', value: `${year}-12-31` });
+  const dates = el('div', { class: 'row', hidden: true },
+    el('div', { class: 'field' }, el('label', { for: 'ex-from' }, 'Fra'), from),
+    el('div', { class: 'field' }, el('label', { for: 'ex-to' }, 'Til'), to));
+  period.addEventListener('change', () => {
+    errBox.hidden = true;
+    dates.hidden = period.value !== 'custom';
+    if (period.value !== 'custom') { from.value = `${period.value}-01-01`; to.value = `${period.value}-12-31`; }
+  });
+  const missing = state.members.filter((m) => !m.archived_at && !m.gender).length;
+  const go = el('button', { type: 'submit', value: 'ok' }, 'Last ned');
+  const form = el('form', { method: 'dialog' },
+    el('h2', {}, 'Eksporter fremmøte'),
+    el('p', { class: 'hint', style: 'margin:-4px 0 14px' },
+      'Du får en mappe (zip-fil) med én Excel-fil per gruppe, i samme oppsett som fremmøtearket. Hver fil heter det samme som gruppen.'),
+    el('div', { class: 'field' }, el('label', { for: 'ex-period' }, 'Periode'), period),
+    dates,
+    missing ? el('div', { class: 'notice warn' },
+      `${missing} ${missing === 1 ? 'deltaker mangler' : 'deltakere mangler'} kjønn. Kolonnen blir tom for dem. Du kan fylle det inn under Deltakere.`) : null,
+    errBox,
+    el('div', { class: 'actions' }, go,
+      el('button', { type: 'submit', value: 'cancel', class: 'secondary', formnovalidate: true }, 'Avbryt')));
+  const dlg = openDialog(form);
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (e.submitter?.value === 'cancel') return dlg.close();
+    const fail = (msg) => { errBox.textContent = msg; errBox.hidden = false; };
+    errBox.hidden = true;
+    if (!from.value || !to.value || from.value > to.value) return fail('Velg en gyldig periode (fra-dato før til-dato).');
+    if (window.__DEMO__) return fail('Nedlasting er slått av i forhåndsvisningen.');
+    go.disabled = true;
+    go.textContent = 'Lager filer …';
+    try {
+      const [meetings, members, { buildExport }] = await Promise.all([
+        fetchAllPages(() => supabase.from('meetings')
+          .select('id, group_id, meeting_date, start_time, hours, mode, attendance(member_id)')
+          .gte('meeting_date', from.value).lte('meeting_date', to.value)
+          .order('meeting_date').order('id')),
+        fetchAllPages(() => supabase.from('members')
+          .select('id, group_id, full_name, birth_year, gender, postal_code, city, archived_at')
+          .order('member_no')),
+        import('./eksport.js'),
+      ]);
+      const whole = period.value !== 'custom';
+      const dmy = (d) => d.split('-').reverse().join('.');
+      const label = whole ? period.value : `${dmy(from.value)}–${dmy(to.value)}`;
+      const folder = `Fremmøte smågrupper ${label}`.replace(/[\\/:*?"<>|]/g, '-');
+      const { files, zip } = buildExport({ groups: state.allGroups, meetings, members, folder });
+      if (!files.length) { go.disabled = false; go.textContent = 'Last ned'; return fail('Fant ingen grupper å eksportere.'); }
+      const a = el('a', { href: URL.createObjectURL(new Blob([zip], { type: 'application/zip' })), download: `${folder}.zip` });
+      document.body.append(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      dlg.close();
+      toast(`Lastet ned ${files.length} ${files.length === 1 ? 'fil' : 'filer'} (${meetings.length} samlinger).`);
+    } catch (err) {
+      go.disabled = false;
+      go.textContent = 'Last ned';
+      fail(friendlyError(err));
+    }
+  });
+}
+
+$('btn-export-attendance').addEventListener('click', exportAttendance);
 
 function renderPeople() {
   renderPending();

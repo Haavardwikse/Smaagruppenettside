@@ -44,6 +44,14 @@
           <input type="text" id="birth_year" name="birth_year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="f.eks. 1990" required>
         </div>
 
+        <fieldset class="field gender-field">
+          <legend class="label">Kjønn</legend>
+          <div class="choice-row" id="gender" role="radiogroup" aria-label="Kjønn">
+            <label class="choice-opt"><input type="radio" name="gender" value="mann" required> Mann</label>
+            <label class="choice-opt"><input type="radio" name="gender" value="kvinne"> Kvinne</label>
+          </div>
+        </fieldset>
+
         <div class="row pc">
           <div class="field">
             <label for="postal_code">Postnummer</label>

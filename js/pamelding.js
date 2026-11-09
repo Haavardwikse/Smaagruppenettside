@@ -60,6 +60,8 @@ $('postal_code').addEventListener('input', async (e) => {
 
 $('birth_year').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4); });
 
+form.querySelectorAll('input[name=gender]').forEach((r) => r.addEventListener('change', () => clearFieldError($('gender'))));
+
 // ---- Validering ----
 function showError(message) {
   $('form-error').textContent = message;
@@ -91,12 +93,14 @@ function validate() {
 
   if (name.length < 3 || !name.includes(' ') || !/\p{L}/u.test(name)) bad($('full_name'), 'Skriv fornavn og etternavn.');
   if (!/^\d{4}$/.test($('birth_year').value.trim()) || year < 1900 || year > thisYear) bad($('birth_year'), 'Skriv fødselsåret med fire siffer, f.eks. 1990.');
+  const gender = form.querySelector('input[name=gender]:checked')?.value || null;
+  if (!gender) { setInvalid($('gender'), 'Velg mann eller kvinne.'); firstBad ??= form.querySelector('input[name=gender]'); }
   if (!/^\d{4}$/.test(pc)) bad($('postal_code'), 'Fire siffer.');
   else if (!cityFound) bad($('postal_code'), 'Fant ikke postnummeret. Sjekk at det er riktig.');
   if (!$('consent').checked) { showError('Du må krysse av for samtykke for å melde deg på.'); firstBad ??= $('consent'); }
 
   if (firstBad) { firstBad.focus(); return null; }
-  return { name, year, pc };
+  return { name, year, gender, pc };
 }
 
 form.addEventListener('submit', async (e) => {
@@ -110,7 +114,7 @@ form.addEventListener('submit', async (e) => {
   button.disabled = true;
   button.textContent = 'Sender …';
   const { error } = await supabase.rpc('register_member', {
-    p_group: groupId, p_full_name: v.name, p_birth_year: v.year, p_postal_code: v.pc, p_city: cityFound, p_consent: true,
+    p_group: groupId, p_full_name: v.name, p_birth_year: v.year, p_gender: v.gender, p_postal_code: v.pc, p_city: cityFound, p_consent: true,
   });
   button.disabled = false;
   button.textContent = 'Meld meg på';

@@ -62,7 +62,7 @@ h2 { font-size: 1.2rem; margin: 0 0 12px; }
 .row.pc { grid-template-columns: 9rem 1fr; }
 @media (max-width: 480px) { .row { grid-template-columns: 1fr; } .row.pc { grid-template-columns: 7.5rem 1fr; } }
 
-input[type=text], input[type=email], input[type=tel], input[type=password], input[type=number], input[type=search], input[type=date],
+input[type=text], input[type=email], input[type=tel], input[type=time], input[type=password], input[type=number], input[type=search], input[type=date],
 select, textarea {
   width: 100%;
   font: inherit;
@@ -520,3 +520,21 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
 .section-title { font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 22px 0 8px; }
 .prow-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .prow.static { cursor: default; }
+
+/* Valg med to knapper (kjønn) */
+fieldset.field { border: 0; padding: 0; margin: 0 0 16px; min-width: 0; }
+fieldset.field legend { padding: 0; }
+.choice-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.choice-row .choice-opt { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; border: 1.5px solid var(--line);
+  border-radius: 12px; background: #fff; cursor: pointer; font-weight: 500; margin: 0; }
+.choice-row .choice-opt input { width: 18px; height: 18px; margin: 0; accent-color: var(--primary); }
+.choice-row .choice-opt:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
+.choice-row .choice-opt:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+.choice-row[aria-invalid=true] .choice-opt { border-color: var(--danger); }
+
+/* Oppmøte: starttid, timer og type */
+.meet-line { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .92rem; margin: -6px 0 14px; }
+.meet-edit { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 10px; max-width: 420px; margin: -6px 0 6px; }
+.meet-edit .field { margin-bottom: 10px; }
+
+.head-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
