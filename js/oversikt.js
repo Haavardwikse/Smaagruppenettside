@@ -38,6 +38,8 @@ const state = {
   inviteRole: null,
 };
 let inRecovery = location.hash.includes('type=recovery');
+// Lenken i kalenderpåminnelsen: oversikt.html#oppmote åpner oppmøtet etter innlogging
+let wantAttend = location.hash === '#oppmote';
 
 // =====================================================================
 //  Hjelpere
@@ -204,7 +206,55 @@ async function route(session) {
   renderAll();
   setTab(state.tab);
   show('app');
+  if (wantAttend) openAttendFromLink();
 }
+
+/** Fra kalenderpåminnelsen: gå rett til oppmøte for egen gruppe. */
+async function openAttendFromLink() {
+  wantAttend = false;
+  history.replaceState(null, '', location.pathname + location.search);
+  const uid = state.session.user.id;
+  const own = state.leaders.find((l) => l.user_id === uid && groupById(l.group_id)?.active)?.group_id;
+  if (!own) return;
+  if (state.current !== own) await selectGroup(own);
+  state.tab = 'group';
+  renderAll();
+  setTab('group');
+  openAttend();
+}
+
+// ---- Kalenderpåminnelse (onsdag kl. 21:20) ----
+
+function nextWednesday() {
+  const d = new Date();
+  d.setDate(d.getDate() + ((3 - d.getDay() + 7) % 7));
+  return d.toLocaleDateString('sv-SE').replace(/-/g, '');
+}
+
+function showReminder() {
+  const link = new URL('oversikt.html#oppmote', location.href).href;
+  const day = nextWednesday();
+  const google = 'https://calendar.google.com/calendar/render?' + new URLSearchParams({
+    action: 'TEMPLATE',
+    text: 'Registrer oppmøte i smågruppen',
+    dates: `${day}T212000/${day}T213000`,
+    ctz: 'Europe/Oslo',
+    recur: 'RRULE:FREQ=WEEKLY;BYDAY=WE',
+    details: `Husk å registrere hvem som var med på smågruppen i kveld.\n\nRegistrer oppmøte her: ${link}`,
+  });
+  openDialog(
+    el('h2', {}, 'Påminnelse om oppmøte'),
+    el('p', { class: 'hint', style: 'margin:-4px 0 14px' },
+      'Legg inn en påminnelse i kalenderen din hver onsdag kl. 21:20. Trykker du på lenken i påminnelsen, kommer du rett til oppmøtet.'),
+    el('div', { class: 'reminder-buttons' },
+      el('a', { class: 'btn', href: 'paaminnelse.ics', download: 'Registrer oppmøte.ics' }, 'iPhone, Mac eller Outlook'),
+      el('a', { class: 'btn secondary', href: google, target: '_blank', rel: 'noopener' }, 'Google Kalender (Android)')),
+    el('p', { class: 'hint', style: 'margin-top:12px' },
+      'Google Kalender bruker din vanlige varslingstid. Sett varselet til «Når aktiviteten starter», så kommer det kl. 21:20.'),
+    el('div', { class: 'actions', style: 'margin-top:14px' },
+      el('button', { class: 'secondary', onclick: (e) => e.target.closest('dialog').close() }, 'Lukk')));
+}
+$('btn-reminder').addEventListener('click', showReminder);
 
 // =====================================================================
 //  Data
@@ -1932,7 +1982,11 @@ $('dlg-profile-form').addEventListener('submit', async (e) => {
 state.inviteCode = readInviteCode();
 window.addEventListener('hashchange', () => {
   const code = readInviteCode();
-  if (code) { state.inviteCode = code; showInvite(); }
+  if (code) { state.inviteCode = code; showInvite(); return; }
+  if (location.hash === '#oppmote') {
+    wantAttend = true;
+    if (state.session && state.me) openAttendFromLink();
+  }
 });
 
 if (!isConfigured) {

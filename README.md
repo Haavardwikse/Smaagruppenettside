@@ -20,6 +20,7 @@ index.html              Påmeldingsskjemaet (åpnes via lenke fra lederen)
 oversikt.html           Ledersiden: innlogging, gruppen, oppmøte, administrasjon
 sjekk.html              Systemsjekk: tester at nettside og database henger sammen
 personvern.html         Personvernerklæring (mal – må tilpasses)
+paaminnelse.ics         Kalenderpåminnelse: registrer oppmøte hver onsdag kl. 21:20
 config.js               Supabase-adresse og -nøkkel, kirkens navn og kontakt-e-post
 css/style.css           Utseende
 js/                     Programkoden
@@ -166,6 +167,10 @@ På **Gruppen** ser lederen:
   e-post eller kopier). De fyller inn opplysningene selv og havner rett i gruppen. Ledere
   legger ikke inn deltakere selv. Det kan bare en administrator gjøre.
 - **Arkiverte:** Folk som har sluttet. De kan gjenopprettes eller slettes for godt.
+- **Påminnelse i kalenderen** (nederst): legger inn en påminnelse hver onsdag kl. 21:20 om å
+  registrere oppmøte. Det finnes én knapp for iPhone, Mac og Outlook, og én for Google Kalender.
+  Lenken i påminnelsen går rett til oppmøtet (`oversikt.html#oppmote`). Google bruker lederens
+  vanlige varslingstid, så der må varselet settes til «Når aktiviteten starter».
 
 Under **Triade** ser lederen hvem hen er i triade med, hvilke grupper de leder, og hvordan de kan
 kontaktes. Siden er laget slik at vi kan legge til mer der senere.

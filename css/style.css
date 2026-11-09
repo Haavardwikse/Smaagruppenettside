@@ -538,3 +538,6 @@ fieldset.field legend { padding: 0; }
 .meet-edit .field { margin-bottom: 10px; }
 
 .head-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+.reminder-buttons { display: grid; gap: 10px; }
+.reminder-buttons .btn { text-align: center; }
