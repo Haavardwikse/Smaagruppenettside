@@ -23,7 +23,7 @@ personvern.html         Personvernerklæring (mal – må tilpasses)
 paaminnelse.ics         Kalenderpåminnelse: registrer oppmøte hver onsdag kl. 21:20
 config.js               Supabase-adresse og -nøkkel, kirkens navn og kontakt-e-post
 css/style.css           Utseende
-js/                     Programkoden
+js/                     Programkoden (js/handbok.js: tekstene i Håndbok)
 supabase/schema.sql     Databaseoppsett, regler for datakvalitet og tilgang
 supabase/postnummer.sql Postnummerregisteret (Bring), brukes til å fylle ut sted
 ```
@@ -151,7 +151,7 @@ Administratorer har fire faner:
 
 ### For ledere og nestledere
 
-Lederen har to faner: **Gruppen** og **Triade**.
+Lederen har tre faner: **Gruppen**, **Triade** og **Håndbok**.
 
 På **Gruppen** ser lederen:
 
@@ -178,6 +178,13 @@ På **Gruppen** ser lederen:
 
 Under **Triade** ser lederen hvem hen er i triade med, hvilke grupper de leder, og hvordan de kan
 kontaktes. Siden er laget slik at vi kan legge til mer der senere.
+
+**Håndbok** har korte informasjonspakker fra leder- og nestlederkurset: hvorfor smågrupper,
+smågruppens fem hensikter, å være smågruppeleder, å være nestleder, godt oppmøte, god gruppekultur,
+Gud gir vekst og hvorfor multiplisere. Administratorer finner den i menyen (**Lederhåndbok**).
+Noen av pakkene dukker også opp der de er relevante: «Hva gjør en nestleder?» når gruppen mangler
+nestleder, hva man ser etter når man velger nestleder, og en kort forklaring i invitasjonen til
+nye ledere og nestledere. Teksten ligger i `js/handbok.js` og er lett å endre.
 
 ### Velge nestleder
 

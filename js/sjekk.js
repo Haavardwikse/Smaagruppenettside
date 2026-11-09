@@ -100,7 +100,7 @@ async function run() {
   }
 
   // 8. Sider og filer
-  const files = ['index.html', 'oversikt.html', 'personvern.html', 'config.js', 'css/style.css', 'js/felles.js', 'js/pamelding.js', 'js/oversikt.js', 'js/eksport.js', 'paaminnelse.ics'];
+  const files = ['index.html', 'oversikt.html', 'personvern.html', 'config.js', 'css/style.css', 'js/felles.js', 'js/pamelding.js', 'js/oversikt.js', 'js/eksport.js', 'js/handbok.js', 'paaminnelse.ics'];
   const missing = [];
   for (const f of files) {
     try {

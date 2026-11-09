@@ -2,13 +2,14 @@ import {
   supabase, isConfigured, config, el, ageFromYear, formatDate, toast, friendlyError, notConfiguredBanner,
   ask, normPhone, validPhone, validEmail, fmtPhone, lookupPostalCode, SCHEMA_VERSION,
 } from './felles.js';
+import { GUIDES, DREAM, MULTIPLY_HOW, TRIAD_INFO, guideNodes, guideById } from './handbok.js';
 
 const $ = (id) => document.getElementById(id);
 document.querySelectorAll('[data-org]').forEach((n) => (n.textContent = config.ORG_NAME));
 
 const SPLIT_SUGGEST_AT = 10; // foreslå multiplisering fra så mange deltakere
 
-const LEADER_TABS = [['group', 'Gruppen'], ['triad', 'Triade']];
+const LEADER_TABS = [['group', 'Gruppen'], ['triad', 'Triade'], ['guide', 'Håndbok']];
 const ADMIN_TABS = [['overview', 'Oversikt'], ['members', 'Deltakere'], ['triads', 'Triader'], ['people', 'Tilgang']];
 
 const state = {
@@ -205,6 +206,7 @@ async function route(session) {
   const name = personName(state.me) || session.user.email;
   $('who').textContent = firstName({ full_name: name });
   $('menu-who').textContent = name;
+  $('btn-guide-menu').hidden = !state.isAdmin;
   if (!state.isAdmin && state.groups.length === 0) return show('noaccess');
 
   // Start alltid på riktig fane for rollen (hindrer at en admin-fane henger igjen)
@@ -509,7 +511,9 @@ function renderLeaderCard(g) {
 
   if (!hasDeputy(g.id) && pendingDeputies(g.id).length === 0) {
     box.append(row('Nestleder',
-      el('span', { class: 'missing-text' }, el('i', { class: 'dot', 'aria-hidden': 'true' }), 'Ingen nestleder ennå'),
+      el('span', {},
+        el('span', { class: 'missing-text' }, el('i', { class: 'dot', 'aria-hidden': 'true' }), 'Ingen nestleder ennå'),
+        el('button', { class: 'text-link', 'data-guide': 'nestleder' }, 'Hva gjør en nestleder?')),
       el('button', { class: 'ghost small', id: 'btn-choose-deputy', onclick: () => chooseDeputy(g) }, 'Velg nestleder')));
   }
 }
@@ -602,8 +606,12 @@ function chooseDeputy(g) {
   const save = el('button', { type: 'submit', value: 'ok', id: 'dep-save' }, 'Lag invitasjon');
   const form = el('form', { method: 'dialog' },
     el('h2', {}, 'Velg nestleder'),
-    el('p', { class: 'hint', style: 'margin:-4px 0 16px' },
-      'Nestlederen får samme tilgang som lederen: ser gruppen, tar oppmøte og kan multiplisere.'),
+    el('p', { class: 'hint', style: 'margin:-4px 0 10px' },
+      'Nestleder betyr neste leder. Nestlederen får samme tilgang som lederen: ser gruppen, tar oppmøte og kan multiplisere.'),
+    el('div', { class: 'guide-hint' },
+      el('strong', {}, 'Se etter: '),
+      'solid karakter, god med mennesker, trofast, hjerte for kirkens visjon og et levende gudsliv. Velg gjerne i samtale med lederne for smågruppearbeidet. ',
+      el('button', { type: 'button', class: 'text-link', 'data-guide': 'nestleder' }, 'Les mer')),
     el('div', { class: 'field' }, el('label', { for: 'dep-member' }, 'Hvem i gruppen?'), sel),
     contact.nodes, errBox,
     el('div', { class: 'actions' }, save,
@@ -680,6 +688,8 @@ function whyMultiply(offerStart = false) {
     el('h2', {}, 'Hvorfor multiplisere?'),
     el('p', {}, 'Når en smågruppe vokser, deler vi den i to. Det er viktig fordi:'),
     el('ol', { class: 'why-list' }, points.map((p) => el('li', {}, p))),
+    el('h3', { class: 'guide-h' }, 'Slik går dere fram'),
+    el('ul', { class: 'guide-list' }, MULTIPLY_HOW.map((p) => el('li', {}, p))),
     el('p', { class: 'why-foot' },
       'Vi forstår at det kan være utfordrende å multiplisere, og at det er kjipt å dele en gruppe som fungerer veldig godt. ' +
       'Likevel er det en utrolig viktig del av det vi gjør som kirke, for å nå enda flere, og for at alle skal få muligheten til et mindre fellesskap.'),
@@ -690,6 +700,48 @@ function whyMultiply(offerStart = false) {
 }
 
 $('btn-why').addEventListener('click', () => whyMultiply(true));
+
+// ---- Håndbok: korte informasjonspakker ----
+
+function openGuide(id) {
+  if (id === 'multiplisere') return whyMultiply(false);
+  const guide = guideById(id);
+  if (!guide) return;
+  const dlg = openDialog(
+    el('div', { class: 'eyebrow' }, 'Håndbok'),
+    el('h2', {}, guide.title),
+    el('div', { class: 'guide-body' }, guideNodes(guide)),
+    el('div', { class: 'actions', style: 'justify-content:flex-end;margin-top:16px' },
+      el('button', { onclick: () => dlg.close() }, 'Lukk')));
+}
+
+function renderGuide() {
+  $('dream-list').replaceChildren(...DREAM.map((d) => el('li', {}, d)));
+  const cards = [...GUIDES, { id: 'multiplisere', title: 'Hvorfor multiplisere?', teaser: 'Multiplisering skaper rom for flere.' }];
+  $('guide-cards').replaceChildren(...cards.map((g) => el('li', {},
+    el('button', { class: 'guide-card', 'data-guide': g.id },
+      el('span', { class: 'pmain' },
+        el('span', { class: 'pname' }, g.title),
+        el('span', { class: 'psub' }, g.teaser)),
+      el('span', { class: 'chev', 'aria-hidden': 'true' }, '›')))));
+  $('triad-info').replaceChildren(...TRIAD_INFO.map((t) => el('li', {}, t)));
+}
+renderGuide();
+
+// Alle lenker med data-guide åpner riktig pakke (også inne i dialoger)
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('[data-guide]');
+  if (!link) return;
+  e.preventDefault();
+  openGuide(link.dataset.guide);
+});
+
+$('btn-guide-menu').addEventListener('click', () => {
+  $('menu').hidden = true;
+  setView('home');
+  setTab('guide');
+  window.scrollTo({ top: 0 });
+});
 document.addEventListener('click', (e) => { if (e.target.closest('[data-why]')) whyMultiply(false); });
 
 // ---- Deltakere ----
@@ -1890,6 +1942,12 @@ async function showInvite() {
     : info.role === 'nestleder'
       ? `Du er invitert som nestleder i smågruppen til ${info.group_name}.`
       : 'Du er invitert som leder for en smågruppe. Gruppen får navnet ditt.';
+  const about = {
+    nestleder: 'Nestleder betyr neste leder. Du hjelper lederen og lærer underveis, slik at du kan lede en egen gruppe når gruppen multipliseres.',
+    leder: 'Å lede en smågruppe handler først og fremst om å følge Jesus selv, og invitere andre med. Du får støtte underveis, blant annet gjennom en triade med to andre ledere.',
+  }[info.role];
+  $('invite-about').textContent = about || '';
+  $('invite-about').hidden = !about;
   if (info.name && !$('invite-name').value) $('invite-name').value = info.name;
   const locked = !!info.email;
   if (locked) $('invite-email').value = info.email;

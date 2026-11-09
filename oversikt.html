@@ -19,6 +19,7 @@
       <div class="menu" id="menu" hidden>
         <div class="menu-who" id="menu-who"></div>
         <button class="menu-item" id="btn-profile">Min profil</button>
+        <button class="menu-item" id="btn-guide-menu" hidden>Lederhåndbok</button>
         <button class="menu-item" id="btn-logout">Logg ut</button>
       </div>
     </div>
@@ -51,6 +52,7 @@
       <div id="invite-valid" hidden>
         <h1>Velkommen som <span id="invite-role">leder</span>!</h1>
         <p class="lead" id="invite-lead"></p>
+        <p class="invite-about" id="invite-about" hidden></p>
 
         <div id="invite-loggedin" hidden>
           <p>Du er logget inn som <strong id="invite-me"></strong>.</p>
@@ -278,7 +280,20 @@
       <div data-panel="triad" class="panel narrow-panel" hidden>
         <h1>Triade</h1>
         <p class="lead">En triade er tre smågruppeledere som støtter, oppmuntrer og ber for hverandre.</p>
+        <ul class="triad-info" id="triad-info"></ul>
         <div id="my-triad"></div>
+      </div>
+
+      <!-- ============ HÅNDBOK (leder) ============ -->
+      <div data-panel="guide" class="panel narrow-panel" hidden>
+        <div class="eyebrow">Håndbok</div>
+        <h1>Å følge Jesus sammen i vår by</h1>
+        <p class="lead">Korte påminnelser om hvorfor vi har smågrupper, og hvordan vi leder dem. Hentet fra leder- og nestlederkurset.</p>
+        <div class="dream">
+          <h2>Drømmen om en god smågruppe</h2>
+          <ul class="dream-list" id="dream-list"></ul>
+        </div>
+        <ul class="guide-cards" id="guide-cards"></ul>
       </div>
 
       <!-- ============ OVERSIKT (admin) ============ -->
