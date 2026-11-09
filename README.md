@@ -189,7 +189,9 @@ nye ledere og nestledere. Teksten ligger i `js/handbok.js` og er lett å endre.
 ### Velge nestleder
 
 1. Trykk **Velg nestleder** i gruppen.
-2. Velg en person fra deltakerlisten, og skriv inn e-post og telefonnummer.
+2. Velg en person fra deltakerlisten, og skriv inn e-post og telefonnummer. Det er det vanligste.
+   Er nestlederen ikke med i gruppen i dag, trykker du **Er ikke nestlederen med i gruppen i dag?**
+   og skriver inn navnet i stedet. Nestlederen kommer da ikke på deltakerlisten.
 3. Du får en ferdig skrevet invitasjon med knappene **Send på SMS** og **Send på e-post**.
 4. Til nestlederen har laget konto, står vedkommende som «Invitert». Etterpå har nestlederen
    samme tilgang som lederen.

@@ -579,3 +579,5 @@ fieldset.field legend { padding: 0; }
 .triad-info li { margin-bottom: 4px; }
 .invite-about { color: var(--muted); font-size: .95rem; margin-top: -6px; }
 .about-group { margin: -6px 0 16px; }
+
+.dep-switch { display: block; margin-top: 8px; color: var(--muted); font-size: .85rem; }

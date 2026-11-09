@@ -595,12 +595,30 @@ function contactFields(prefix) {
 function chooseDeputy(g) {
   const taken = new Set([...leadersOf(g.id).map((l) => l.member_id), ...pendingFor(g.id).map((i) => i.member_id)].filter(Boolean));
   const people = activeIn(g.id).filter((m) => !taken.has(m.id));
-  if (!people.length) {
-    return toast('Nestlederen velges blant deltakerne. Del påmeldingslenken først.', 'error');
-  }
+  // Vanligst: nestlederen er med i gruppen. Unntaket (noen utenfra) ligger bak en liten lenke.
+  let outside = people.length === 0;
   const sel = el('select', { id: 'dep-member' },
     el('option', { value: '' }, 'Velg person …'),
     people.map((m) => el('option', { value: m.id }, m.full_name)));
+  const name = el('input', { type: 'text', id: 'dep-name', maxlength: 100, autocomplete: 'off' });
+  const memberBox = el('div', { class: 'field' },
+    el('label', { for: 'dep-member' }, 'Hvem i gruppen?'), sel,
+    el('button', { type: 'button', class: 'text-link dep-switch', id: 'dep-outside' }, 'Er ikke nestlederen med i gruppen i dag?'));
+  const outsideBox = el('div', { class: 'field' },
+    el('label', { for: 'dep-name' }, 'Navn på nestlederen'), name,
+    el('div', { class: 'hint' }, people.length
+      ? 'For en som ikke er deltaker i gruppen i dag.'
+      : 'Det er ingen deltakere i gruppen ennå, så skriv inn navnet på nestlederen.'),
+    people.length ? el('button', { type: 'button', class: 'text-link dep-switch', id: 'dep-inside' }, 'Velg blant deltakerne i stedet') : null);
+  const setMode = (o) => {
+    outside = o;
+    errBox.hidden = true;
+    memberBox.hidden = o;
+    outsideBox.hidden = !o;
+    (o ? name : sel).focus();
+  };
+  memberBox.querySelector('#dep-outside').addEventListener('click', () => setMode(true));
+  outsideBox.querySelector('#dep-inside')?.addEventListener('click', () => setMode(false));
   const contact = contactFields('dep');
   const errBox = el('div', { class: 'notice error', hidden: true });
   const save = el('button', { type: 'submit', value: 'ok', id: 'dep-save' }, 'Lag invitasjon');
@@ -612,30 +630,41 @@ function chooseDeputy(g) {
       el('strong', {}, 'Se etter: '),
       'solid karakter, god med mennesker, trofast, hjerte for kirkens visjon og et levende gudsliv. Velg gjerne i samtale med lederne for smågruppearbeidet. ',
       el('button', { type: 'button', class: 'text-link', 'data-guide': 'nestleder' }, 'Les mer')),
-    el('div', { class: 'field' }, el('label', { for: 'dep-member' }, 'Hvem i gruppen?'), sel),
-    contact.nodes, errBox,
+    memberBox, outsideBox,
+    contact.nodes,
+    el('p', { class: 'hint', style: 'margin-top:-6px' }, 'Nestlederen får en lenke, lager konto med denne e-posten og får tilgang til gruppen.'),
+    errBox,
     el('div', { class: 'actions' }, save,
       el('button', { type: 'submit', value: 'cancel', class: 'secondary', formnovalidate: true }, 'Avbryt')));
   const dlg = openDialog(form);
+  setMode(outside);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (e.submitter?.value === 'cancel') return dlg.close();
     const fail = (msg) => { errBox.textContent = msg; errBox.hidden = false; };
-    const member = people.find((m) => m.id === sel.value);
-    if (!member) return fail('Velg hvem som skal være nestleder.');
+    errBox.hidden = true;
+    let who;
+    if (outside) {
+      const n = name.value.trim().replace(/\s+/g, ' ');
+      if (n.length < 2) return fail('Skriv navnet på nestlederen.');
+      who = { name: n, memberId: null };
+    } else {
+      const member = people.find((m) => m.id === sel.value);
+      if (!member) return fail('Velg hvem i gruppen som skal være nestleder.');
+      who = { name: member.full_name, memberId: member.id };
+    }
     const c = contact.read();
     if (c.error) return fail(c.error);
     save.disabled = true;
     const { data: code, error } = await supabase.rpc('create_invite', {
-      p_group: g.id, p_role: 'nestleder', p_name: member.full_name, p_email: c.email, p_phone: c.phone, p_member_id: member.id,
+      p_group: g.id, p_role: 'nestleder', p_name: who.name, p_email: c.email, p_phone: c.phone, p_member_id: who.memberId,
     });
     save.disabled = false;
     if (error) return fail(friendlyError(error));
     dlg.close();
     await reload();
-    shareInvite({ code, name: member.full_name, role: 'nestleder', email: c.email, phone: c.phone, groupId: g.id });
+    shareInvite({ code, name: who.name, role: 'nestleder', email: c.email, phone: c.phone, groupId: g.id });
   });
-  sel.focus();
 }
 
 async function inviteLeader(g) {
