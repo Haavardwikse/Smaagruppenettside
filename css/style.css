@@ -453,3 +453,65 @@ input[readonly] { background: var(--bg); }
 .checks .warnc .icon { color: #b07a10; }
 .checks .wait .icon { color: var(--muted); }
 .checks .detail { grid-column: 2; color: var(--muted); font-size: .9rem; }
+
+
+/* =====================================================================
+   Grafisk profil – Bergen Frikirke
+   Mørk, nesten svart blågrønn (#101b1f), rutemønster og hvitt symbol.
+   ===================================================================== */
+:root {
+  --brand: #101b1f;
+  --brand-2: #172226;
+  --bg: #f3f4f4;
+  --surface: #ffffff;
+  --ink: #121a1d;
+  --muted: #5d686c;
+  --line: #dfe3e4;
+  --primary: #101b1f;
+  --primary-ink: #ffffff;
+  --primary-soft: #e7ecee;
+}
+a { color: var(--brand); text-underline-offset: 2px; }
+
+.site-header {
+  max-width: none;
+  margin: 0;
+  padding: 14px max(20px, calc((100% - 1100px) / 2 + 20px));
+  background-color: var(--brand);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"%3E%3Crect width="44" height="44" fill="#101b1f"/%3E%3Cpath d="M22 0L44 22L22 44L0 22Z" fill="#192629"/%3E%3C/svg%3E");
+  background-size: 44px 44px;
+  color: #fff;
+  border-bottom: 1px solid #0a1214;
+}
+.brand { display: flex; align-items: center; gap: 12px; color: #fff; }
+.brand .logo { width: 30px; height: 30px; color: #fff; flex: none; }
+.brand-text { display: flex; flex-direction: column; line-height: 1.2; letter-spacing: .01em; }
+.brand small { color: rgba(255, 255, 255, .68); font-weight: 500; }
+.site-header #btn-menu { background: rgba(255, 255, 255, .08); color: #fff; border-color: rgba(255, 255, 255, .28); }
+.site-header #btn-menu:hover { background: rgba(255, 255, 255, .16); filter: none; }
+main { padding-top: 24px; }
+
+h1, h2 { letter-spacing: -.01em; }
+.eyebrow { letter-spacing: .12em; }
+button:hover { filter: none; background-color: #22323a; }
+button.secondary:hover, button.ghost:hover, button.danger:hover, .menu-item:hover,
+.prow:hover, .mrow:hover, .gcard:hover, .arow-btn:hover, .srow:hover, .chip-btn:hover,
+.tabs button:hover, .segmented button:hover { background-color: var(--bg); }
+button.ghost:hover { background-color: rgba(16, 27, 31, .06); }
+.tabs button[aria-selected=true] { color: var(--brand); border-bottom-color: var(--brand); }
+.chip-btn[aria-pressed=true] { background: var(--brand); border-color: var(--brand); }
+.chip-btn[aria-pressed=true]:hover { background: #22323a; }
+.dots i.on { background: var(--brand); border-color: var(--brand); }
+.arow-btn[aria-checked=true] { border-color: var(--brand); }
+.arow-btn[aria-checked=true] .tick { background: var(--brand); border-color: var(--brand); }
+.success .mark { background: var(--brand); color: #fff; }
+.check input, .choice input { accent-color: var(--brand); }
+.soft-hint { border-color: #c7cfd1; }
+.stat { background: var(--primary-soft); }
+input:focus, select:focus, textarea:focus, button:focus-visible {
+  outline: 3px solid rgba(16, 27, 31, .22); border-color: var(--brand);
+}
+.toast { background: var(--brand); }
+.site-footer a { color: var(--muted); }
+
+.health summary::after { margin-left: 10px; }
