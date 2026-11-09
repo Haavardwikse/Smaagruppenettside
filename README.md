@@ -125,7 +125,7 @@ multipliseres. Har en gruppe to ledere, heter den «Ingrid Berge og Ola Hansen»
 
 ### For administratorer
 
-Administratorer har fire faner:
+Administratorer har fem faner (den femte er **Håndbok**, samme som lederne har):
 
 - **Oversikt:** **Eksporter** gir en mappe (zip) med én Excel-fil per gruppe, i samme oppsett som
   fremmøtearket: dato, starttid, «Hvordan er samlingen gjennomført?» og timer øverst, deretter én rad
@@ -181,7 +181,7 @@ kontaktes. Siden er laget slik at vi kan legge til mer der senere.
 
 **Håndbok** har korte informasjonspakker fra leder- og nestlederkurset: hvorfor smågrupper,
 smågruppens fem hensikter, å være smågruppeleder, å være nestleder, godt oppmøte, god gruppekultur,
-Gud gir vekst og hvorfor multiplisere. Administratorer finner den i menyen (**Lederhåndbok**).
+Gud gir vekst og hvorfor multiplisere. Administratorer har også fanen **Håndbok**.
 Noen av pakkene dukker også opp der de er relevante: «Hva gjør en nestleder?» når gruppen mangler
 nestleder, hva man ser etter når man velger nestleder, og en kort forklaring i invitasjonen til
 nye ledere og nestledere. Teksten ligger i `js/handbok.js` og er lett å endre.

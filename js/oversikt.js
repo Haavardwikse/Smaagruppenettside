@@ -10,7 +10,7 @@ document.querySelectorAll('[data-org]').forEach((n) => (n.textContent = config.O
 const SPLIT_SUGGEST_AT = 10; // foreslå multiplisering fra så mange deltakere
 
 const LEADER_TABS = [['group', 'Gruppen'], ['triad', 'Triade'], ['guide', 'Håndbok']];
-const ADMIN_TABS = [['overview', 'Oversikt'], ['members', 'Deltakere'], ['triads', 'Triader'], ['people', 'Tilgang']];
+const ADMIN_TABS = [['overview', 'Oversikt'], ['members', 'Deltakere'], ['triads', 'Triader'], ['people', 'Tilgang'], ['guide', 'Håndbok']];
 
 const state = {
   session: null,
@@ -206,7 +206,6 @@ async function route(session) {
   const name = personName(state.me) || session.user.email;
   $('who').textContent = firstName({ full_name: name });
   $('menu-who').textContent = name;
-  $('btn-guide-menu').hidden = !state.isAdmin;
   if (!state.isAdmin && state.groups.length === 0) return show('noaccess');
 
   // Start alltid på riktig fane for rollen (hindrer at en admin-fane henger igjen)
@@ -765,12 +764,7 @@ document.addEventListener('click', (e) => {
   openGuide(link.dataset.guide);
 });
 
-$('btn-guide-menu').addEventListener('click', () => {
-  $('menu').hidden = true;
-  setView('home');
-  setTab('guide');
-  window.scrollTo({ top: 0 });
-});
+
 document.addEventListener('click', (e) => { if (e.target.closest('[data-why]')) whyMultiply(false); });
 
 // ---- Deltakere ----

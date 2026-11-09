@@ -581,3 +581,12 @@ fieldset.field legend { padding: 0; }
 .about-group { margin: -6px 0 16px; }
 
 .dep-switch { display: block; margin-top: 8px; color: var(--muted); font-size: .85rem; }
+
+/* Smale skjermer: alle fanene skal få plass uten å rulle */
+@media (max-width: 440px) {
+  .tabs { gap: 0; justify-content: space-between; }
+  .tabs button { padding: 10px 6px; font-size: .9rem; }
+}
+@media (max-width: 380px) {
+  .tabs button { padding: 10px 3px; font-size: .84rem; }
+}
