@@ -71,6 +71,8 @@ deres, med mindre dere setter opp egen e-posttjeneste (se «E-post» nederst).
    ```sql
    update public.profiles set role = 'admin' where email = 'din@epost.no';
    ```
+4. Dette trengs bare for den første administratoren. Andre administratorer og ledere inviterer
+   du fra nettsiden (fanen **Tilgang → + Inviter**).
 
 ### 4. Koble nettsiden til databasen
 
@@ -132,7 +134,12 @@ Administratorer har fire faner:
   vedkommende til en annen gruppe eller arkivere. Her kan du også laste ned listen.
 - **Triader:** Sett sammen triader med **+ Ny triade**, med to eller tre ledere. Nederst står
   hvilke ledere som ikke er i en triade ennå.
-- **Tilgang:** Alle som har konto. Trykk på en person for å endre rolle eller grupper.
+- **Tilgang:** Her gir du nye folk tilgang. Trykk **+ Inviter**, velg **Leder** (for en ny eller
+  eksisterende gruppe) eller **Administrator**, og fyll inn navn og e-post (og telefon for ledere).
+  Du får en lenke du sender på SMS eller e-post. Personen åpner lenken, lager konto og har tilgang
+  med en gang. Under **Venter på å godta** ser du invitasjoner som ikke er brukt ennå. Der kan du
+  sende lenken på nytt eller avbryte den. Under **Har tilgang** står alle som har konto. Trykk på
+  en person for å endre rolle eller grupper.
 
 **Legge ned en gruppe:** Åpne gruppen → **Endre beskrivelse** → fjern haken for «Aktiv».
 
@@ -241,13 +248,14 @@ Tilgangsreglene er testet mot Postgres med egne brukere for hver rolle. Testene 
 - En nestleder kan bare velges blant deltakerne i egen gruppe, og kan bare fjernes av en leder i gruppen eller en administrator.
 - Bare ledere i gruppen kan multiplisere den.
 - Ledere kan ikke legge inn deltakere selv. Det går bare via påmeldingslenken.
-- Bare administratorer kan lage grupper og triader.
+- Bare administratorer kan lage grupper og triader, og invitere nye administratorer.
+- En administrator-lenke virker bare for e-posten den er laget til, og bare én gang.
 - En leder ser bare sin egen triade, og aldri deltakerne i andres grupper.
 - Gruppenavnet følger lederen.
 - Besøkende kan bare slå opp postnumre og bruke de fire offentlige funksjonene. Alle tabeller har
   radtilgang (RLS), og alle funksjoner har fast søkesti.
 
-Det er 107 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
+Det er 130 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
 konto, leder, nestleder, leder i annen gruppe og administrator) prøver alt den ikke skal få lov
 til. Oppgradering fra tidligere versjoner er testet uten at data går tapt. Hele flyten er også testet i
 nettleseren på mobil og PC: påmelding, oppmøte, arkivering, nestleder, multiplisering, triader og

@@ -54,7 +54,7 @@
 
         <div id="invite-loggedin" hidden>
           <p>Du er logget inn som <strong id="invite-me"></strong>.</p>
-          <button class="block" id="invite-accept">Godta og gå til gruppen</button>
+          <button class="block" id="invite-accept">Godta invitasjonen</button>
         </div>
 
         <div id="invite-loggedout">
@@ -291,8 +291,18 @@
 
       <!-- ============ TILGANG (admin) ============ -->
       <div data-panel="people" class="panel narrow-panel" hidden>
-        <h1>Tilgang</h1>
-        <p class="lead">Alle som har konto. Nye ledere får tilgang via en invitasjonslenke fra gruppen.</p>
+        <div class="panel-head">
+          <h1>Tilgang</h1>
+          <button class="small" id="btn-invite">+ Inviter</button>
+        </div>
+        <p class="lead">Gi en ny leder eller administrator tilgang: trykk «+ Inviter» og send lenken til personen.</p>
+        <div id="people-pending" hidden>
+          <h2 class="section-title">Venter på å godta</h2>
+          <div class="card plain">
+            <ul class="plist" id="pending-list"></ul>
+          </div>
+        </div>
+        <h2 class="section-title">Har tilgang</h2>
         <div class="card plain">
           <ul class="plist" id="people-list"></ul>
         </div>

@@ -1,6 +1,6 @@
 -- =====================================================================
 --  Smågrupper – Bergen Frikirke · databaseoppsett for Supabase
---  Versjon 5
+--  Versjon 6
 --
 --  Kjør hele filen i Supabase: SQL Editor → New query → Run.
 --  Kjør deretter postnummer.sql på samme måte (postnummerregisteret).
@@ -137,11 +137,12 @@ create table if not exists public.attendance (
   primary key (meeting_id, member_id)
 );
 
--- Invitasjonslenker for ledere og nestledere. Koden er hemmeligheten.
+-- Invitasjonslenker for ledere, nestledere og administratorer. Koden er hemmeligheten.
+-- Administrator-invitasjoner har ingen gruppe.
 create table if not exists public.group_invites (
   code       text primary key,
-  group_id   uuid not null references public.groups(id) on delete cascade,
-  role       text not null default 'leder' check (role in ('leder', 'nestleder')),
+  group_id   uuid references public.groups(id) on delete cascade,
+  role       text not null default 'leder',
   name       text,
   email      text,
   phone      text,
@@ -155,6 +156,11 @@ create table if not exists public.group_invites (
 alter table public.group_invites add column if not exists email text;
 alter table public.group_invites add column if not exists phone text;
 alter table public.group_invites add column if not exists member_id uuid references public.members(id) on delete set null;
+alter table public.group_invites alter column group_id drop not null;
+alter table public.group_invites drop constraint if exists group_invites_role_check;
+alter table public.group_invites drop constraint if exists group_invites_role_ok;
+alter table public.group_invites add constraint group_invites_role_ok
+  check (role in ('leder', 'nestleder', 'admin') and ((role = 'admin') = (group_id is null)));
 
 -- Triader: tre smågruppeledere som støtter hverandre
 create table if not exists public.triads (
@@ -527,7 +533,7 @@ end $$;
 create or replace function public.schema_version()
 returns int
 language sql immutable set search_path = public
-as $$ select 5; $$;
+as $$ select 6; $$;
 
 -- Offentlig: navnet på én gruppe (fra påmeldingslenken). Gruppelisten er ikke offentlig.
 drop function if exists public.group_public_info(uuid);
@@ -679,8 +685,39 @@ returns table (group_name text, role text, name text, email text)
 language sql stable security definer set search_path = public
 as $$
   select g.name, i.role, i.name, i.email
-  from public.group_invites i join public.groups g on g.id = i.group_id
+  from public.group_invites i left join public.groups g on g.id = i.group_id
   where i.code = p_code and i.used_at is null and i.expires_at > now();
+$$;
+
+-- Inviter en ny administrator (bare admin). Navn og e-post er påkrevd, telefon valgfritt.
+create or replace function public.create_admin_invite(p_name text, p_email text, p_phone text default null)
+returns text
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_code  text := replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
+  v_email text := public.norm_email(p_email);
+begin
+  if not public.is_admin() then
+    raise exception 'Bare administratorer kan invitere administratorer';
+  end if;
+  if public.norm_name(p_name) is null or char_length(public.norm_name(p_name)) < 2 then
+    raise exception 'Skriv navnet på personen.';
+  end if;
+  if v_email is null or v_email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then
+    raise exception 'Skriv inn en gyldig e-postadresse.';
+  end if;
+  if public.norm_phone(p_phone) is not null and public.norm_phone(p_phone) !~ '^\+[0-9]{8,15}$' then
+    raise exception 'Skriv inn et gyldig telefonnummer.';
+  end if;
+  if exists (select 1 from public.profiles where email = v_email and role = 'admin') then
+    raise exception 'Personen er allerede administrator.';
+  end if;
+  delete from public.group_invites where role = 'admin' and used_at is null and email = v_email;
+  insert into public.group_invites (code, group_id, role, name, email, phone, created_by)
+  values (v_code, null, 'admin', p_name, p_email, p_phone, auth.uid());
+  return v_code;
+end;
 $$;
 
 -- Godta invitasjon. Kontoen må ha samme e-post som invitasjonen.
@@ -702,6 +739,16 @@ begin
   select email into v_email from public.profiles where id = auth.uid();
   if v.email is not null and v_email is distinct from v.email then
     raise exception 'Invitasjonen gjelder %. Logg inn eller lag konto med den e-posten.', v.email;
+  end if;
+
+  if v.role = 'admin' then
+    update public.group_invites set used_by = auth.uid(), used_at = now() where code = p_code;
+    update public.profiles
+    set role      = 'admin',
+        full_name = case when coalesce(full_name, '') = '' then coalesce(v.name, full_name) else full_name end,
+        phone     = coalesce(phone, v.phone)
+    where id = auth.uid();
+    return null;
   end if;
 
   insert into public.group_leaders (group_id, user_id, role, member_id)
@@ -961,6 +1008,7 @@ grant execute on function public.is_triad_group(uuid)                          t
 grant execute on function public.save_attendance(uuid, date, uuid[])           to authenticated;
 grant execute on function public.create_invite(uuid, text, text, text, text, uuid) to authenticated;
 grant execute on function public.accept_invite(text)                           to authenticated;
+grant execute on function public.create_admin_invite(text, text, text)         to authenticated;
 grant execute on function public.remove_coleader(uuid, uuid)                   to authenticated;
 grant execute on function public.split_group(uuid, uuid[], uuid, boolean, text, text, text) to authenticated;
 grant execute on function public.create_group(text, uuid, text, text, text)    to authenticated;

@@ -62,7 +62,7 @@ h2 { font-size: 1.2rem; margin: 0 0 12px; }
 .row.pc { grid-template-columns: 9rem 1fr; }
 @media (max-width: 480px) { .row { grid-template-columns: 1fr; } .row.pc { grid-template-columns: 7.5rem 1fr; } }
 
-input[type=text], input[type=email], input[type=password], input[type=number], input[type=search], input[type=date],
+input[type=text], input[type=email], input[type=tel], input[type=password], input[type=number], input[type=search], input[type=date],
 select, textarea {
   width: 100%;
   font: inherit;
@@ -515,3 +515,8 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
 .site-footer a { color: var(--muted); }
 
 .health summary::after { margin-left: 10px; }
+
+/* Tilgang: overskrifter og ventende invitasjoner */
+.section-title { font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 22px 0 8px; }
+.prow-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.prow.static { cursor: default; }

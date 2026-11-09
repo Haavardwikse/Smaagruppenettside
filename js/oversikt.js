@@ -35,6 +35,7 @@ const state = {
   search: '',
   inviteCode: null,
   inviteMode: 'new',
+  inviteRole: null,
 };
 let inRecovery = location.hash.includes('type=recovery');
 
@@ -86,7 +87,7 @@ const deputiesOf = (gid) => state.leaders.filter((l) => l.group_id === gid && l.
 const pendingFor = (gid) => state.invites.filter((i) => i.group_id === gid);
 const pendingDeputies = (gid) => pendingFor(gid).filter((i) => i.role === 'nestleder');
 const hasDeputy = (gid) => deputiesOf(gid).length > 0;
-const roleLabel = (r) => (r === 'nestleder' ? 'Nestleder' : 'Leder');
+const roleLabel = (r) => (r === 'nestleder' ? 'Nestleder' : r === 'admin' ? 'Administrator' : 'Leder');
 
 
 function contactLine(phone, email) {
@@ -460,19 +461,21 @@ function shareInvite({ code, name, role, email, phone, groupId }) {
   const gname = anyGroupName(groupId);
   const first = (name || '').split(' ')[0] || 'personen';
   const link = inviteLink(code);
-  const what = role === 'nestleder' ? `nestleder i smågruppen til ${gname}` : 'leder for en smågruppe';
+  const what = role === 'admin' ? `administrator for smågruppene i ${config.ORG_NAME}`
+    : role === 'nestleder' ? `nestleder i smågruppen til ${gname}` : 'leder for en smågruppe';
+  const roleText = role === 'admin' ? 'administrator' : role;
   const msg = `Hei ${first}! Du er invitert som ${what}. Åpne lenken for å lage konto og få tilgang: ${link}`;
   const input = el('input', { type: 'text', value: link, readonly: true, onfocus: (e) => e.target.select() });
   const dlg = openDialog(
     el('h2', {}, `Send invitasjonen til ${first}`),
     el('p', { class: 'hint', style: 'margin:-4px 0 14px' },
-      `Når ${first} åpner lenken, lager hen en konto${email ? ` med ${email}` : ''} og får tilgang som ${role}. Lenken kan brukes én gang og varer i 30 dager.`),
+      `Når ${first} åpner lenken, lager hen en konto${email ? ` med ${email}` : ''} og får tilgang som ${roleText}. Lenken kan brukes én gang og varer i 30 dager.`),
     el('div', { class: 'copy-row' }, input, copyButton(link, input)),
     el('div', { class: 'actions', style: 'margin-top:14px' },
       phone ? el('a', { class: 'btn', href: `sms:${phone}?&body=${encodeURIComponent(msg)}` }, 'Send på SMS') : null,
       email ? el('a', {
         class: 'btn secondary',
-        href: `mailto:${email}?subject=${encodeURIComponent('Invitasjon til smågruppe')}&body=${encodeURIComponent(msg)}`,
+        href: `mailto:${email}?subject=${encodeURIComponent(role === 'admin' ? 'Invitasjon: administrator for smågruppene' : 'Invitasjon til smågruppe')}&body=${encodeURIComponent(msg)}`,
       }, 'Send på e-post') : null),
     window.__DEMO__ ? el('button', {
       class: 'ghost small', style: 'margin-top:8px',
@@ -1426,7 +1429,111 @@ $('btn-new-triad').addEventListener('click', () => editTriad(null));
 //  TILGANG (admin)
 // =====================================================================
 
+function renderPending() {
+  const list = $('pending-list');
+  list.innerHTML = '';
+  const pending = [...state.invites].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'nb'));
+  $('people-pending').hidden = pending.length === 0;
+  for (const i of pending) {
+    const what = i.role === 'admin' ? 'Administrator' : `${roleLabel(i.role)} · ${groupName(i.group_id)}`;
+    list.append(el('li', { class: 'arow' },
+      el('span', { class: 'pmain' },
+        el('span', { class: 'pname' }, i.name || i.email || 'Ukjent',
+          el('span', { class: 'role-pill pending' }, 'Invitert')),
+        el('span', { class: 'psub' }, [what, i.email].filter(Boolean).join(' · '))),
+      el('span', { class: 'prow-actions' },
+        el('button', {
+          class: 'ghost small',
+          onclick: () => shareInvite({ code: i.code, name: i.name, role: i.role, email: i.email, phone: i.phone, groupId: i.group_id }),
+        }, 'Send lenken'),
+        el('button', { class: 'ghost small muted-btn', onclick: () => cancelInvite(i) }, 'Avbryt'))));
+  }
+}
+
+/** Inviter en ny leder (ny eller eksisterende gruppe) eller en ny administrator. */
+function invitePerson() {
+  let kind = 'leder';
+  const name = el('input', { type: 'text', id: 'ip-name', maxlength: 100, autocomplete: 'off' });
+  const email = el('input', { type: 'email', id: 'ip-email', maxlength: 120, autocomplete: 'off' });
+  const phone = el('input', { type: 'tel', id: 'ip-phone', inputmode: 'tel', maxlength: 20, autocomplete: 'off' });
+  const phoneLabel = el('label', { for: 'ip-phone' }, 'Telefon');
+  const groups = state.groups.filter((g) => g.active).sort((a, b) => a.name.localeCompare(b.name, 'nb'));
+  const groupSel = el('select', { id: 'ip-group' },
+    el('option', { value: '' }, 'Ny gruppe (får navnet til lederen)'),
+    groups.map((g) => el('option', { value: g.id }, `Gruppen til ${g.name}`)));
+  const groupBox = el('div', { class: 'field' }, el('label', { for: 'ip-group' }, 'Hvilken gruppe skal hen lede?'), groupSel);
+  const explain = el('p', { class: 'hint', style: 'margin:-4px 0 14px' });
+  const seg = el('div', { class: 'segmented', role: 'tablist' },
+    el('button', { type: 'button', role: 'tab', 'data-k': 'leder' }, 'Leder'),
+    el('button', { type: 'button', role: 'tab', 'data-k': 'admin' }, 'Administrator'));
+  const setKind = (k) => {
+    kind = k;
+    seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.k === k)));
+    groupBox.hidden = k !== 'leder';
+    phoneLabel.textContent = k === 'admin' ? 'Telefon (valgfritt)' : 'Telefon';
+    explain.textContent = k === 'admin'
+      ? 'En administrator ser alle grupper og deltakere, og kan invitere andre. Gi bare denne tilgangen til dem som trenger det.'
+      : 'Lederen ser bare sin egen gruppe og triade. Velger du en gruppe som allerede har leder, blir de to ledere sammen.';
+  };
+  seg.addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (b) setKind(b.dataset.k); });
+  const errBox = el('div', { class: 'notice error', hidden: true });
+  const save = el('button', { type: 'submit', value: 'ok' }, 'Lag lenke');
+  const form = el('form', { method: 'dialog' },
+    el('h2', {}, 'Inviter'),
+    seg, explain, groupBox,
+    el('div', { class: 'field' }, el('label', { for: 'ip-name' }, 'Navn'), name),
+    el('div', { class: 'row' },
+      el('div', { class: 'field' }, el('label', { for: 'ip-email' }, 'E-post'), email),
+      el('div', { class: 'field' }, phoneLabel, phone)),
+    el('p', { class: 'hint' }, 'E-posten blir personens innlogging. Lenken virker bare for denne e-posten, kan brukes én gang og varer i 30 dager.'),
+    errBox,
+    el('div', { class: 'actions' }, save,
+      el('button', { type: 'submit', value: 'cancel', class: 'secondary', formnovalidate: true }, 'Avbryt')));
+  const dlg = openDialog(form);
+  setKind(kind);
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (e.submitter?.value === 'cancel') return dlg.close();
+    const fail = (msg) => { errBox.textContent = msg; errBox.hidden = false; };
+    errBox.hidden = true;
+    const n = name.value.trim();
+    const em = email.value.trim().toLowerCase();
+    const ph = normPhone(phone.value);
+    if (n.length < 2) return fail('Skriv navnet på personen.');
+    if (!validEmail(em)) return fail('Skriv inn en gyldig e-postadresse.');
+    if (kind === 'leder' && !validPhone(ph)) return fail('Skriv inn et gyldig telefonnummer (8 sifre).');
+    if (kind === 'admin' && phone.value.trim() && !validPhone(ph)) return fail('Telefonnummeret ser ikke riktig ut.');
+    save.disabled = true;
+    let code = null;
+    let groupId = null;
+    let error = null;
+    if (kind === 'admin') {
+      ({ data: code, error } = await supabase.rpc('create_admin_invite', { p_name: n, p_email: em, p_phone: phone.value.trim() ? ph : null }));
+    } else if (groupSel.value) {
+      groupId = groupSel.value;
+      ({ data: code, error } = await supabase.rpc('create_invite', {
+        p_group: groupId, p_role: 'leder', p_name: n, p_email: em, p_phone: ph, p_member_id: null,
+      }));
+    } else {
+      let data;
+      ({ data, error } = await supabase.rpc('create_group', {
+        p_description: null, p_leader_user: null, p_invite_name: n, p_invite_email: em, p_invite_phone: ph,
+      }));
+      if (data) { code = data.invite_code; groupId = data.group_id; }
+    }
+    save.disabled = false;
+    if (error) return fail(friendlyError(error));
+    dlg.close();
+    await reload();
+    shareInvite({ code, name: n, role: kind, email: em, phone: kind === 'admin' && !phone.value.trim() ? null : ph, groupId });
+  });
+  name.focus();
+}
+
+$('btn-invite').addEventListener('click', invitePerson);
+
 function renderPeople() {
+  renderPending();
   const list = $('people-list');
   list.innerHTML = '';
   for (const p of state.profiles) {
@@ -1515,10 +1622,13 @@ async function showInvite() {
   $('invite-valid').hidden = !info;
   $('invite-invalid').hidden = !!info;
   if (!info) return;
-  $('invite-role').textContent = info.role;
-  $('invite-lead').textContent = info.role === 'nestleder'
-    ? `Du er invitert som nestleder i smågruppen til ${info.group_name}.`
-    : 'Du er invitert som leder for en smågruppe. Gruppen får navnet ditt.';
+  state.inviteRole = info.role;
+  $('invite-role').textContent = info.role === 'admin' ? 'administrator' : info.role;
+  $('invite-lead').textContent = info.role === 'admin'
+    ? `Du er invitert som administrator for smågruppene i ${config.ORG_NAME}. Du får se alle grupper og deltakere.`
+    : info.role === 'nestleder'
+      ? `Du er invitert som nestleder i smågruppen til ${info.group_name}.`
+      : 'Du er invitert som leder for en smågruppe. Gruppen får navnet ditt.';
   if (info.name && !$('invite-name').value) $('invite-name').value = info.name;
   const locked = !!info.email;
   if (locked) $('invite-email').value = info.email;
@@ -1555,9 +1665,9 @@ async function acceptInvite() {
   }
   state.inviteCode = null;
   history.replaceState(null, '', location.pathname + location.search);
-  toast('Velkommen! Du har nå tilgang til gruppen.');
+  toast(state.inviteRole === 'admin' ? 'Velkommen! Du er nå administrator.' : 'Velkommen! Du har nå tilgang til gruppen.');
   state.current = null;
-  state.tab = 'group';
+  state.tab = null;
   const { data } = await supabase.auth.getSession();
   await route(data.session);
   return true;

@@ -5,7 +5,7 @@ import { config } from '../config.js';
 export { config, createClient };
 
 /** Databaseversjonen nettsiden er laget for (se supabase/schema.sql). */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export const isConfigured =
   !config.SUPABASE_URL.includes('DITT-PROSJEKT') && !config.SUPABASE_KEY.startsWith('LIM-INN');
