@@ -11,5 +11,5 @@ export const config = {
   SUPABASE_KEY: 'sb_publishable_GtYCm8Bl0LKvghfEBnCMCw_nlUiYXI_',
 
   ORG_NAME: 'Bergen Frikirke',
-  CONTACT_EMAIL: 'post@eksempel.no', // vises i personvernerklæringen
+  CONTACT_EMAIL: 'hei@bergenfrikirke.no', // vises i personvernerklæringen
 };
