@@ -132,11 +132,10 @@ Administratorer har fem faner (den femte er **Håndbok**, samme som lederne har)
   per deltaker (navn, postnummer, poststed, telefon, kjønn, fødselsår) med «x» for oppmøte. Velg år
   eller egne datoer. Filene heter det samme som gruppene. Bare samlinger med registrert oppmøte tas
   med. Deltakere som har sluttet, men var med i perioden, kommer også med.
-  Under knappene: alle grupper som kort, med nestleder, antall deltakere og når gruppen sist samlet seg.
+  Under knappene: alle grupper som kort («Ingrid Berge sin smågruppe»), med nestleder, antall deltakere og når gruppen sist samlet seg.
   Grupper uten nestleder har en liten gul prikk. Trykk på en gruppe for å se den slik lederen ser
   den. Nederst i gruppen kan du endre beskrivelse, invitere leder eller slette en tom gruppe.
   Med **+ Ny gruppe** velger du en leder som har konto, eller inviterer en ny.
-- **Oversikt:** Gruppene vises som «Navn sin smågruppe».
 - **Deltakere:** Alle i gruppene: ledere, nestledere og deltakere. Velg **Alle / Ledere /
   Nestledere / Deltakere** for å se bare én rolle, og filtrer på gruppe eller søk. Trykk på en
   deltaker for å redigere, flytte eller arkivere, eller på en leder for å endre tilgangen.
