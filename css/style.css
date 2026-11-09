@@ -616,3 +616,5 @@ fieldset.field legend { padding: 0; }
   .week-past-row { flex-direction: column; }
   .week-past-row button { width: 100%; }
 }
+.lmore { padding: 6px 12px 8px; border-top: 1px solid var(--line); }
+.lmore button { margin: 0; }

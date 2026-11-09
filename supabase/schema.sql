@@ -1,6 +1,6 @@
 -- =====================================================================
 --  Smågrupper – Bergen Frikirke · databaseoppsett for Supabase
---  Versjon 8
+--  Versjon 9
 --
 --  Kjør hele filen i Supabase: SQL Editor → New query → Run.
 --  Kjør deretter postnummer.sql på samme måte (postnummerregisteret).
@@ -550,7 +550,7 @@ end $$;
 create or replace function public.schema_version()
 returns int
 language sql immutable set search_path = public
-as $$ select 8; $$;
+as $$ select 9; $$;
 
 -- Offentlig: navnet på én gruppe (fra påmeldingslenken). Gruppelisten er ikke offentlig.
 drop function if exists public.group_public_info(uuid);
@@ -762,6 +762,13 @@ begin
              where gl.group_id = p_group and p.email = public.norm_email(p_email)) then
     raise exception 'Personen er allerede leder i denne gruppen.';
   end if;
+  -- Én leder per gruppe. En ny leder får en egen gruppe (create_group).
+  if p_role = 'leder' and (
+       exists (select 1 from public.group_leaders where group_id = p_group and role = 'leder')
+    or exists (select 1 from public.group_invites where group_id = p_group and role = 'leder' and used_at is null
+               and email is distinct from public.norm_email(p_email))) then
+    raise exception 'Gruppen har allerede en leder. En ny leder får sin egen smågruppe.';
+  end if;
   delete from public.group_invites
   where group_id = p_group and used_at is null and email = public.norm_email(p_email);
   insert into public.group_invites (code, group_id, role, name, email, phone, member_id, created_by)
@@ -820,6 +827,7 @@ as $$
 declare
   v public.group_invites%rowtype;
   v_email text;
+  v_group uuid;
 begin
   if auth.uid() is null then
     raise exception 'Du må være logget inn';
@@ -843,8 +851,17 @@ begin
     return null;
   end if;
 
+  v_group := v.group_id;
+  -- Én leder per gruppe: har gruppen fått en annen leder i mellomtiden, får denne lederen en ny gruppe
+  if v.role = 'leder' and exists (select 1 from public.group_leaders
+      where group_id = v.group_id and role = 'leder' and user_id <> auth.uid()) then
+    insert into public.groups (name)
+    values (left(coalesce(public.norm_name(v.name), split_part(v_email, '@', 1)), 80))
+    returning id into v_group;
+  end if;
+
   insert into public.group_leaders (group_id, user_id, role, member_id)
-  values (v.group_id, auth.uid(), v.role, v.member_id)
+  values (v_group, auth.uid(), v.role, case when v_group = v.group_id then v.member_id end)
   on conflict (group_id, user_id) do update
     set role = excluded.role,
         member_id = coalesce(excluded.member_id, public.group_leaders.member_id);
@@ -854,7 +871,7 @@ begin
   set full_name = case when coalesce(full_name, '') = '' then coalesce(v.name, full_name) else full_name end,
       phone     = coalesce(phone, v.phone)
   where id = auth.uid();
-  return v.group_id;
+  return v_group;
 end;
 $$;
 
@@ -1254,6 +1271,27 @@ create policy "triad_members: triade og admin ser" on public.triad_members
 delete from public.triad_members tm
 where not exists (select 1 from public.group_leaders gl where gl.user_id = tm.user_id and gl.role = 'leder');
 delete from public.triads t where not exists (select 1 from public.triad_members m where m.triad_id = t.id);
+
+-- Én leder per gruppe. Har en gruppe flere ledere fra før, beholder den første gruppen
+-- (med deltakere og samlinger), og hver av de andre får en egen, ny gruppe.
+do $$
+declare
+  r record;
+  v_new uuid;
+begin
+  for r in
+    select gl.group_id, gl.user_id, coalesce(nullif(p.full_name, ''), split_part(p.email, '@', 1)) as nm
+    from public.group_leaders gl join public.profiles p on p.id = gl.user_id
+    where gl.role = 'leder' and exists (
+      select 1 from public.group_leaders o
+      where o.group_id = gl.group_id and o.role = 'leder' and (o.created_at, o.user_id) < (gl.created_at, gl.user_id))
+  loop
+    insert into public.groups (name) values (left(r.nm, 80)) returning id into v_new;
+    update public.group_leaders set group_id = v_new, member_id = null
+    where group_id = r.group_id and user_id = r.user_id;
+  end loop;
+end $$;
+create unique index if not exists group_leaders_one_leder on public.group_leaders(group_id) where role = 'leder';
 
 select public.refresh_group_name(id) from public.groups;
 

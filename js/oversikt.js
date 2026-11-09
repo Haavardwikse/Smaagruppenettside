@@ -529,6 +529,10 @@ function renderLeaderCard(g) {
         el('span', { class: 'missing-text' }, el('i', { class: 'dot', 'aria-hidden': 'true' }), 'Ingen nestleder ennå'),
         el('button', { class: 'text-link', 'data-guide': 'nestleder' }, 'Hva gjør en nestleder?')),
       el('button', { class: 'ghost small', id: 'btn-choose-deputy', onclick: () => chooseDeputy(g) }, 'Velg nestleder')));
+  } else {
+    // En gruppe kan ha flere nestledere
+    box.append(el('div', { class: 'lmore' },
+      el('button', { class: 'ghost small', id: 'btn-add-deputy', onclick: () => chooseDeputy(g) }, '+ Legg til nestleder')));
   }
 }
 
@@ -1790,11 +1794,6 @@ function invitePerson() {
   const email = el('input', { type: 'email', id: 'ip-email', maxlength: 120, autocomplete: 'off' });
   const phone = el('input', { type: 'tel', id: 'ip-phone', inputmode: 'tel', maxlength: 20, autocomplete: 'off' });
   const phoneLabel = el('label', { for: 'ip-phone' }, 'Telefon');
-  const groups = state.groups.filter((g) => g.active).sort((a, b) => a.name.localeCompare(b.name, 'nb'));
-  const groupSel = el('select', { id: 'ip-group' },
-    el('option', { value: '' }, 'Ny gruppe (får navnet til lederen)'),
-    groups.map((g) => el('option', { value: g.id }, `Gruppen til ${g.name}`)));
-  const groupBox = el('div', { class: 'field' }, el('label', { for: 'ip-group' }, 'Hvilken gruppe skal hen lede?'), groupSel);
   const explain = el('p', { class: 'hint', style: 'margin:-4px 0 14px' });
   const seg = el('div', { class: 'segmented', role: 'tablist' },
     el('button', { type: 'button', role: 'tab', 'data-k': 'leder' }, 'Leder'),
@@ -1802,18 +1801,17 @@ function invitePerson() {
   const setKind = (k) => {
     kind = k;
     seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.k === k)));
-    groupBox.hidden = k !== 'leder';
     phoneLabel.textContent = k === 'admin' ? 'Telefon (valgfritt)' : 'Telefon';
     explain.textContent = k === 'admin'
-      ? 'En administrator ser alle grupper og deltakere, og kan invitere andre. Gi bare denne tilgangen til dem som trenger det.'
-      : 'Lederen ser bare sin egen gruppe. Velger du en gruppe som allerede har leder, blir de to ledere sammen.';
+      ? 'En administrator ser alle grupper og deltakere, og kan invitere andre. Det blir ikke laget noen ny gruppe.'
+      : 'En ny smågruppeleder får sin egen smågruppe, som får navnet til lederen. Lederen ser bare sin egen gruppe.';
   };
   seg.addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (b) setKind(b.dataset.k); });
   const errBox = el('div', { class: 'notice error', hidden: true });
   const save = el('button', { type: 'submit', value: 'ok' }, 'Lag lenke');
   const form = el('form', { method: 'dialog' },
     el('h2', {}, 'Inviter'),
-    seg, explain, groupBox,
+    seg, explain,
     el('div', { class: 'field' }, el('label', { for: 'ip-name' }, 'Navn'), name),
     el('div', { class: 'row' },
       el('div', { class: 'field' }, el('label', { for: 'ip-email' }, 'E-post'), email),
@@ -1842,11 +1840,6 @@ function invitePerson() {
     let error = null;
     if (kind === 'admin') {
       ({ data: code, error } = await supabase.rpc('create_admin_invite', { p_name: n, p_email: em, p_phone: phone.value.trim() ? ph : null }));
-    } else if (groupSel.value) {
-      groupId = groupSel.value;
-      ({ data: code, error } = await supabase.rpc('create_invite', {
-        p_group: groupId, p_role: 'leder', p_name: n, p_email: em, p_phone: ph, p_member_id: null,
-      }));
     } else {
       let data;
       ({ data, error } = await supabase.rpc('create_group', {
@@ -2008,9 +2001,17 @@ function editAccess(p) {
   roleSel.value = p.role;
   const free = state.groups.filter((g) => !assignments.some((a) => a.group_id === g.id));
   const gSel = el('select', { id: 'acc-group' }, el('option', { value: '' }, 'Legg til i gruppe …'),
+    el('option', { value: 'new' }, 'Ny smågruppe med hen som leder'),
     free.map((g) => el('option', { value: g.id }, groupTitle(g.id))));
-  const rSel = el('select', { id: 'acc-grouprole' },
-    el('option', { value: 'nestleder' }, 'som nestleder'), el('option', { value: 'leder' }, 'som leder'));
+  const leaderOpt = el('option', { value: 'leder' }, 'som leder');
+  const rSel = el('select', { id: 'acc-grouprole' }, el('option', { value: 'nestleder' }, 'som nestleder'), leaderOpt);
+  // Én leder per gruppe: «som leder» bare for grupper uten leder
+  gSel.addEventListener('change', () => {
+    const isNew = gSel.value === 'new';
+    rSel.hidden = isNew;
+    leaderOpt.disabled = !!gSel.value && !isNew && leadersOf(gSel.value).some((l) => l.role === 'leder');
+    if (leaderOpt.disabled && rSel.value === 'leder') rSel.value = 'nestleder';
+  });
   const dlg = openDialog(
     el('h2', {}, personName(p)),
     el('p', { class: 'hint', style: 'margin:-4px 0 14px' }, [p.email, fmtPhone(p.phone)].filter(Boolean).join(' · ')),
@@ -2031,7 +2032,7 @@ function editAccess(p) {
             },
           }, 'Fjern'))))
         : el('p', { class: 'hint' }, 'Ikke satt i noen gruppe.')),
-    free.length ? el('div', { class: 'field' }, el('div', { class: 'stack' }, gSel, rSel)) : null,
+    el('div', { class: 'field' }, el('div', { class: 'stack' }, gSel, rSel)),
     el('div', { class: 'actions' },
       el('button', {
         onclick: async () => {
@@ -2039,7 +2040,10 @@ function editAccess(p) {
             const { error } = await supabase.from('profiles').update({ role: roleSel.value }).eq('id', p.id);
             if (error) return toast(friendlyError(error), 'error');
           }
-          if (gSel.value) {
+          if (gSel.value === 'new') {
+            const { error } = await supabase.rpc('create_group', { p_description: null, p_leader_user: p.id });
+            if (error) return toast(friendlyError(error), 'error');
+          } else if (gSel.value) {
             const { error } = await supabase.from('group_leaders').insert({ group_id: gSel.value, user_id: p.id, role: rSel.value });
             if (error) return toast(friendlyError(error), 'error');
           }

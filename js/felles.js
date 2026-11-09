@@ -5,7 +5,7 @@ import { config } from '../config.js';
 export { config, createClient };
 
 /** Databaseversjonen nettsiden er laget for (se supabase/schema.sql). */
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 export const isConfigured =
   !config.SUPABASE_URL.includes('DITT-PROSJEKT') && !config.SUPABASE_KEY.startsWith('LIM-INN');
@@ -62,6 +62,7 @@ export function friendlyError(error) {
     [/Invalid login credentials/i, 'Feil e-post eller passord.'],
     [/Email not confirmed/i, 'E-postadressen er ikke bekreftet ennå.'],
     [/members_no_duplicates/i, 'Personen står allerede i denne gruppen.'],
+    [/group_leaders_one_leder/i, 'Gruppen har allerede en leder. En ny leder får sin egen smågruppe.'],
     [/members_name_ok/i, 'Navnet må ha minst to tegn og inneholde bokstaver.'],
     [/members_postal_code_ok/i, 'Postnummer må være fire siffer.'],
     [/members_city_ok/i, 'Stedsnavnet er for kort eller for langt.'],

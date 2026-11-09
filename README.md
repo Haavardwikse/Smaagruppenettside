@@ -121,7 +121,11 @@ Kjør den gjerne igjen etter hver oppdatering.
 
 Gruppene heter det samme som lederen, for eksempel «Ingrid Berge». Navnet settes og oppdateres
 automatisk: når en ny leder kommer inn, når en leder endrer navnet sitt, og når en gruppe
-multipliseres. Har en gruppe to ledere, heter den «Ingrid Berge og Ola Hansen».
+multipliseres.
+
+**Én leder per gruppe.** En smågruppe har alltid bare én leder, men kan ha flere nestledere.
+Inviterer du en ny smågruppeleder, får hen sin egen, nye smågruppe. Inviterer du en administrator,
+blir det ikke laget noen gruppe.
 
 ### For administratorer
 
@@ -142,13 +146,15 @@ Administratorer har fem faner (den femte er **Håndbok**, samme som lederne har)
   **Last ned** gir deltakerne i utvalget som CSV.
 - **Triader:** Sett sammen triader med **+ Ny triade**, med to eller tre ledere. Bare ledere kan
   være i en triade, ikke nestledere. Nederst står hvilke ledere som ikke er i en triade ennå.
-- **Tilgang:** Her gir du nye folk tilgang. Trykk **+ Inviter**, velg **Leder** (for en ny eller
-  eksisterende gruppe) eller **Administrator**, og fyll inn navn og e-post (og telefon for ledere).
+- **Tilgang:** Her gir du nye folk tilgang. Trykk **+ Inviter**, velg **Leder** (får en ny
+  smågruppe) eller **Administrator**, og fyll inn navn og e-post (og telefon for ledere).
   Du får en lenke du sender på SMS eller e-post. Personen åpner lenken, lager konto og har tilgang
   med en gang. Under **Venter på å godta** ser du invitasjoner som ikke er brukt ennå. Der kan du
   sende lenken på nytt eller avbryte den. Under **Har tilgang** står alle som har konto, delt i
   Administratorer, Ledere, Nestledere og Uten gruppe, med et rollemerke og hvilken gruppe de leder
   («Nestleder i Ruben Gustavsen sin smågruppe»). Trykk på en person for å endre rolle eller grupper.
+  Der kan du gjøre noen til nestleder i en gruppe, til leder for en gruppe som mangler leder, eller
+  velge **Ny smågruppe med hen som leder**.
   Åpner noen en invitasjonslenke mens en annen bruker er logget inn på samme maskin, kan de trykke
   **Logg inn med en annen bruker**. Invitasjonen blir liggende.
 
@@ -161,8 +167,9 @@ Triade-fanen, siden triader bare er for ledere.
 
 På **Gruppen** ser lederen:
 
-- **Leder og nestleder** med telefon og e-post. Mangler gruppen nestleder, står det «Ingen
-  nestleder ennå» med knappen **Velg nestleder**.
+- **Leder og nestledere** med telefon og e-post. Mangler gruppen nestleder, står det «Ingen
+  nestleder ennå» med knappen **Velg nestleder**. Har gruppen nestleder, kan lederen legge til
+  flere med **+ Legg til nestleder**.
 - **Denne ukens samling** (øverst): Hver aktiv gruppe får automatisk en samling hver onsdag kl.
   19–21. Kortet viser datoen tydelig og om oppmøtet er registrert. Trykk **Registrer oppmøte**,
   kryss av dem som var der og lagre. Mandag og tirsdag står det «Neste samling», og oppmøte kan
@@ -236,6 +243,9 @@ Reglene ligger i selve databasen, så de gjelder uansett hvordan data kommer inn
   og e-post med små bokstaver.
 - **Invitasjoner** krever navn, e-post og telefon. En ny invitasjon til samme e-post erstatter den
   gamle.
+- **Én leder per gruppe:** Databasen stopper en leder nummer to i samme gruppe. En gruppe kan
+  ha flere nestledere. Hadde en gruppe flere ledere fra før, beholder den første lederen gruppen
+  med deltakere og samlinger, og de andre får hver sin nye gruppe.
 - **Sammenheng:** Oppmøte kan bare registreres på aktive deltakere i egen gruppe, og ikke fram i
   tid. Velges nestlederen fra deltakerlisten, må personen være deltaker i samme gruppe. En triade
   kan bare bestå av ledere, ikke nestledere.
@@ -289,7 +299,7 @@ Tilgangsreglene er testet mot Postgres med egne brukere for hver rolle. Testene 
 - Besøkende kan bare slå opp postnumre og bruke de fire offentlige funksjonene. Alle tabeller har
   radtilgang (RLS), og alle funksjoner har fast søkesti.
 
-Det er 183 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
+Det er 192 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
 konto, leder, nestleder, leder i annen gruppe og administrator) prøver alt den ikke skal få lov
 til. Oppgradering fra tidligere versjoner er testet uten at data går tapt. Hele flyten er også testet i
 nettleseren på mobil og PC: påmelding, oppmøte, arkivering, nestleder, multiplisering, triader og
