@@ -32,7 +32,7 @@ const state = {
   tab: null,
   attend: { date: '', present: new Set(), meetingId: null },
   split: null,
-  filterGroup: '',
+  filterGroup: '', filterRole: '',
   search: '',
   inviteCode: null,
   inviteMode: 'new',
@@ -98,6 +98,14 @@ const inviteLink = (code) => new URL(`oversikt.html#inv-${code}`, location.href)
 
 const deputiesOf = (gid) => state.leaders.filter((l) => l.group_id === gid && l.role === 'nestleder');
 const pendingFor = (gid) => state.invites.filter((i) => i.group_id === gid);
+/** Visningsnavn: «Ruben Gustavsen sin smågruppe» når gruppen er oppkalt etter lederen. */
+function groupTitle(gid) {
+  const name = anyGroupName(gid);
+  const named = leadersOf(gid).some((l) => l.role === 'leder') || pendingFor(gid).some((i) => i.role === 'leder');
+  return named ? `${name} sin smågruppe` : name;
+}
+/** «Leder for X sin smågruppe» / «Nestleder i X sin smågruppe» */
+const assignmentText = (role, gid) => `${role === 'nestleder' ? 'Nestleder i' : 'Leder for'} ${groupTitle(gid)}`;
 const pendingDeputies = (gid) => pendingFor(gid).filter((i) => i.role === 'nestleder');
 const hasDeputy = (gid) => deputiesOf(gid).length > 0;
 const genderLabel = (g) => (g === 'mann' ? 'Mann' : g === 'kvinne' ? 'Kvinne' : '');
@@ -822,7 +830,7 @@ function openPerson(m, { adminList = false } = {}) {
   fact('Kjønn', genderLabel(m.gender) || 'Ikke oppgitt');
   fact('Alder', m.birth_year ? `${ageFromYear(m.birth_year)} år (født ${m.birth_year})` : null);
   fact('Bosted', [m.postal_code, m.city].filter(Boolean).join(' '));
-  if (adminList) fact('Gruppe', groupName(m.group_id));
+  if (adminList) fact('Gruppe', groupTitle(m.group_id));
   fact('Med siden', formatDate(m.created_at));
   fact('Deltaker-ID', m.member_no ? `#${m.member_no}` : null);
   if (!adminList) {
@@ -844,7 +852,7 @@ function openPerson(m, { adminList = false } = {}) {
       if (!move.value) return;
       const target = move.value;
       dlg.close();
-      if (!(await ask(`Flytte ${m.full_name} til gruppen til ${groupName(target)}?`, 'Flytt'))) return;
+      if (!(await ask(`Flytte ${m.full_name} til ${groupTitle(target)}?`, 'Flytt'))) return;
       const { error } = await supabase.from('members').update({ group_id: target }).eq('id', m.id);
       if (error) return toast(friendlyError(error), 'error');
       toast(`${m.full_name} er flyttet.`);
@@ -1018,6 +1026,16 @@ function renderWeekCard(active) {
   btn.disabled = future || active.length === 0;
   btn.classList.toggle('secondary', done);
   btn.lastChild.textContent = future ? ' Kan registreres fra onsdag' : done ? ' Endre oppmøte' : ' Registrer oppmøte';
+  // Rett under: velg en tidligere samling (de siste ukene, nyeste først)
+  const past = state.meetings.filter((x) => x.meeting_date < wed && x.meeting_date <= today() &&
+    (isWednesday(x.meeting_date) || hasAttendance(x)))
+    .sort((a, b) => b.meeting_date.localeCompare(a.meeting_date)).slice(0, 12);
+  $('week-past').hidden = past.length === 0 || active.length === 0;
+  $('past-select').replaceChildren(...past.map((x) => el('option', { value: x.meeting_date },
+    `${longDate(x.meeting_date).replace(/^Onsdag /, '')} – ${hasAttendance(x) ? `${x.attendance.length} til stede` : 'ikke registrert'}`)));
+  // Foreslå den nyeste som mangler oppmøte
+  const missing = past.find((x) => !hasAttendance(x));
+  if (missing) $('past-select').value = missing.meeting_date;
   // Tydelig tilbud om kalenderpåminnelse til lederen har lagt den inn én gang
   const uid = state.session?.user.id;
   const leadsThis = state.leaders.some((l) => l.user_id === uid && l.group_id === state.current);
@@ -1025,6 +1043,11 @@ function renderWeekCard(active) {
 }
 
 // ---- Tidligere samlinger ----
+
+$('btn-attend-past').addEventListener('click', () => {
+  const d = $('past-select').value;
+  if (d) openAttend(d);
+});
 
 function renderMeetings() {
   // Alle samlinger unntatt ukens (den står i kortet øverst). Tomme samlinger vises som «Ikke registrert».
@@ -1372,8 +1395,7 @@ function triadPeople(triadId) {
   return state.triadMembers.filter((m) => m.triad_id === triadId);
 }
 function groupsLedBy(userId) {
-  return state.leaders.filter((l) => l.user_id === userId)
-    .map((l) => `${roleLabel(l.role)} for gruppen til ${anyGroupName(l.group_id)}`);
+  return state.leaders.filter((l) => l.user_id === userId).map((l) => assignmentText(l.role, l.group_id));
 }
 
 function renderMyTriad() {
@@ -1428,7 +1450,7 @@ function groupCard(g) {
   return el('li', {},
     el('button', { class: 'gcard', onclick: () => openGroup(g.id) },
       el('span', { class: 'gmain' },
-        el('span', { class: 'gname' }, g.name),
+        el('span', { class: 'gname' }, groupTitle(g.id)),
         el('span', { class: 'gline' }, deputyLine),
         el('span', { class: 'gline muted' }, bits.join(' · '))),
       el('span', { class: 'gcount' }, el('b', {}, count), el('small', {}, 'deltakere'))));
@@ -1553,39 +1575,93 @@ $('btn-new-group').addEventListener('click', () => {
 //  DELTAKERE (admin)
 // =====================================================================
 
-function visibleMembers() {
+/**
+ * Alle personer i gruppene: deltakere, nestledere og ledere.
+ * En nestleder som også står på deltakerlisten, vises én gang (som nestleder).
+ */
+function allPeople() {
+  const linked = new Map(); // member_id -> rolle
+  for (const l of state.leaders) if (l.member_id) linked.set(l.member_id, l.role);
+  const out = state.members.filter((m) => !m.archived_at).map((m) => ({
+    kind: 'member', id: m.id, name: m.full_name, role: linked.get(m.id) || 'deltaker', groups: [m.group_id], member: m,
+  }));
+  const byUser = new Map();
+  for (const l of state.leaders) {
+    if (l.member_id) continue;
+    const e = byUser.get(l.user_id) || { kind: 'leader', id: l.user_id, name: personName(l.profiles), role: 'nestleder', groups: [], assignments: [], profile: l.profiles };
+    e.groups.push(l.group_id);
+    e.assignments.push(l);
+    if (l.role === 'leder') e.role = 'leder';
+    byUser.set(l.user_id, e);
+  }
+  return [...out, ...byUser.values()];
+}
+
+const ROLE_FILTERS = { '': 'Alle', leder: 'Ledere', nestleder: 'Nestledere', deltaker: 'Deltakere' };
+
+function visiblePeople() {
   const s = state.search.toLowerCase();
-  return state.members.filter((m) => !m.archived_at &&
-    (!state.filterGroup || m.group_id === state.filterGroup) &&
-    (!s || `${m.full_name} ${m.postal_code || ''} ${m.city || ''} #${m.member_no}`.toLowerCase().includes(s)));
+  return allPeople().filter((e) => (!state.filterRole || e.role === state.filterRole) &&
+    (!state.filterGroup || e.groups.includes(state.filterGroup)) &&
+    (!s || [e.name, e.member?.postal_code, e.member?.city, e.member ? `#${e.member.member_no}` : '', e.profile?.email]
+      .filter(Boolean).join(' ').toLowerCase().includes(s)))
+    .sort((a, b) => a.name.localeCompare(b.name, 'nb'));
+}
+
+/** Bare deltakerne (for CSV og statistikk). */
+function visibleMembers() {
+  return visiblePeople().filter((e) => e.kind === 'member').map((e) => e.member);
 }
 
 function renderMembersList() {
   const sel = $('filter-group');
   sel.innerHTML = '';
   sel.append(el('option', { value: '' }, 'Alle grupper'));
-  for (const g of state.groups) sel.append(el('option', { value: g.id }, `${g.name} (${activeIn(g.id).length})`));
+  for (const g of state.groups) sel.append(el('option', { value: g.id }, groupTitle(g.id)));
   sel.value = state.filterGroup;
+  $('filter-role').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.role === state.filterRole)));
 
-  const rows = visibleMembers();
-  const ages = rows.filter((m) => m.birth_year).map((m) => ageFromYear(m.birth_year));
-  $('members-summary').textContent = `${rows.length} deltakere` +
-    (ages.length ? ` · snittalder ${Math.round(ages.reduce((a, b) => a + b, 0) / ages.length)} år` : '');
+  const rows = visiblePeople();
+  const n = (r) => rows.filter((e) => e.role === r).length;
+  const ages = rows.filter((e) => e.member?.birth_year).map((e) => ageFromYear(e.member.birth_year));
+  $('members-summary').textContent = [
+    `${rows.length} ${rows.length === 1 ? 'person' : 'personer'}`,
+    !state.filterRole ? [[n('leder'), 'leder', 'ledere'], [n('nestleder'), 'nestleder', 'nestledere'], [n('deltaker'), 'deltaker', 'deltakere']].map(([k, one, many]) => `${k} ${k === 1 ? one : many}`).join(', ') : null,
+    ages.length ? `snittalder ${Math.round(ages.reduce((a, b) => a + b, 0) / ages.length)} år` : null,
+  ].filter(Boolean).join(' · ');
 
   const list = $('members-list');
   list.innerHTML = '';
   if (!rows.length) {
-    list.append(el('li', { class: 'empty' }, state.search ? 'Ingen treff.' : 'Ingen deltakere ennå.'));
+    list.append(el('li', { class: 'empty' }, state.search ? 'Ingen treff.' : 'Ingen her ennå.'));
     return;
   }
-  for (const m of rows) {
+  for (const e of rows) {
+    let sub;
+    let open;
+    if (e.kind === 'member') {
+      const m = e.member;
+      sub = [memberSub(m), state.filterGroup ? null : groupTitle(m.group_id), `#${m.member_no}`].filter(Boolean).join(' · ');
+      open = () => openPerson(m, { adminList: true });
+    } else {
+      sub = [e.assignments.map((a) => assignmentText(a.role, a.group_id)).join(', '), e.profile?.email].filter(Boolean).join(' · ');
+      const profile = state.profiles.find((p) => p.id === e.id);
+      open = () => (profile ? editAccess(profile) : null);
+    }
     list.append(el('li', {},
-      el('button', { class: 'prow', onclick: () => openPerson(m, { adminList: true }) },
+      el('button', { class: 'prow', onclick: open },
         el('span', { class: 'pmain' },
-          el('span', { class: 'pname' }, m.full_name),
-          el('span', { class: 'psub' }, [memberSub(m), state.filterGroup ? null : groupName(m.group_id), `#${m.member_no}`].filter(Boolean).join(' · '))))));
+          el('span', { class: 'pname' }, e.name, e.role !== 'deltaker' ? rolePills([e.role]) : null),
+          el('span', { class: 'psub' }, sub)))));
   }
 }
+
+$('filter-role').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-role]');
+  if (!b) return;
+  state.filterRole = b.dataset.role;
+  renderMembersList();
+});
 
 $('filter-group').addEventListener('change', (e) => { state.filterGroup = e.target.value; renderMembersList(); });
 $('filter-search').addEventListener('input', (e) => { state.search = e.target.value.trim(); renderMembersList(); });
@@ -1692,7 +1768,7 @@ function renderPending() {
   const pending = [...state.invites].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'nb'));
   $('people-pending').hidden = pending.length === 0;
   for (const i of pending) {
-    const what = i.role === 'admin' ? 'Administrator' : `${roleLabel(i.role)} · ${groupName(i.group_id)}`;
+    const what = i.role === 'admin' ? 'Administrator' : assignmentText(i.role, i.group_id);
     list.append(el('li', { class: 'arow' },
       el('span', { class: 'pmain' },
         el('span', { class: 'pname' }, i.name || i.email || 'Ukjent',
@@ -1730,7 +1806,7 @@ function invitePerson() {
     phoneLabel.textContent = k === 'admin' ? 'Telefon (valgfritt)' : 'Telefon';
     explain.textContent = k === 'admin'
       ? 'En administrator ser alle grupper og deltakere, og kan invitere andre. Gi bare denne tilgangen til dem som trenger det.'
-      : 'Lederen ser bare sin egen gruppe og triade. Velger du en gruppe som allerede har leder, blir de to ledere sammen.';
+      : 'Lederen ser bare sin egen gruppe. Velger du en gruppe som allerede har leder, blir de to ledere sammen.';
   };
   seg.addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (b) setKind(b.dataset.k); });
   const errBox = el('div', { class: 'notice error', hidden: true });
@@ -1875,23 +1951,51 @@ function exportAttendance() {
 
 $('btn-export-attendance').addEventListener('click', exportAttendance);
 
+/** Rollemerker for en konto: Administrator, Leder, Nestleder (en person kan ha flere). */
+function accountRoles(p) {
+  const a = state.leaders.filter((l) => l.user_id === p.id);
+  const roles = [];
+  if (p.role === 'admin') roles.push('admin');
+  if (a.some((l) => l.role === 'leder')) roles.push('leder');
+  if (a.some((l) => l.role === 'nestleder')) roles.push('nestleder');
+  return roles;
+}
+const ROLE_PILL = { admin: 'Administrator', leder: 'Leder', nestleder: 'Nestleder' };
+const rolePills = (roles) => roles.map((r) => el('span', { class: `role-pill role-${r}` }, ROLE_PILL[r]));
+
 function renderPeople() {
   renderPending();
   const list = $('people-list');
   list.innerHTML = '';
-  for (const p of state.profiles) {
-    const assignments = state.leaders.filter((l) => l.user_id === p.id);
-    const sub = assignments.length
-      ? assignments.map((a) => `${roleLabel(a.role)} · ${groupName(a.group_id)}`).join(', ')
-      : (p.role === 'admin' ? 'Ser alle grupper' : 'Ingen gruppe');
-    list.append(el('li', {},
-      el('button', { class: 'prow', onclick: () => editAccess(p) },
-        el('span', { class: 'pmain' },
-          el('span', { class: 'pname' }, personName(p),
-            p.role === 'admin' ? el('span', { class: 'role-pill' }, 'Admin') : null,
-            p.id === state.me.id ? el('span', { class: 'psub inline' }, ' (deg)') : null),
-          el('span', { class: 'psub' }, sub)),
-        el('span', { class: 'chev', 'aria-hidden': 'true' }, '›'))));
+  // Delt inn etter høyeste rolle, så det er lett å se hvem som er hva
+  const sections = [
+    ['admin', 'Administratorer', 'Ser og styrer alle grupper.'],
+    ['leder', 'Ledere', 'Leder sin egen smågruppe.'],
+    ['nestleder', 'Nestledere', 'Hjelper lederen, med samme tilgang til gruppen.'],
+    ['none', 'Uten gruppe', 'Har konto, men ingen tilgang ennå.'],
+  ];
+  const top = (p) => accountRoles(p)[0] || 'none';
+  for (const [key, title, explain] of sections) {
+    const people = state.profiles.filter((p) => top(p) === key)
+      .sort((a, b) => personName(a).localeCompare(personName(b), 'nb'));
+    if (!people.length) continue;
+    list.append(el('li', { class: 'plist-head' },
+      el('span', {}, `${title} `, el('span', { class: 'count' }, people.length)),
+      el('span', { class: 'psub' }, explain)));
+    for (const p of people) {
+      const assignments = state.leaders.filter((l) => l.user_id === p.id)
+        .sort((a, b) => (a.role === 'leder' ? 0 : 1) - (b.role === 'leder' ? 0 : 1));
+      const lines = assignments.map((a) => assignmentText(a.role, a.group_id));
+      if (!lines.length) lines.push(p.role === 'admin' ? 'Ser alle grupper' : 'Ingen gruppe');
+      list.append(el('li', {},
+        el('button', { class: 'prow', onclick: () => editAccess(p) },
+          el('span', { class: 'pmain' },
+            el('span', { class: 'pname' }, personName(p),
+              p.id === state.me.id ? el('span', { class: 'psub inline' }, ' (deg)') : null,
+              rolePills(accountRoles(p))),
+            lines.map((t) => el('span', { class: 'psub' }, t))),
+          el('span', { class: 'chev', 'aria-hidden': 'true' }, '›'))));
+    }
   }
 }
 
@@ -1904,7 +2008,7 @@ function editAccess(p) {
   roleSel.value = p.role;
   const free = state.groups.filter((g) => !assignments.some((a) => a.group_id === g.id));
   const gSel = el('select', { id: 'acc-group' }, el('option', { value: '' }, 'Legg til i gruppe …'),
-    free.map((g) => el('option', { value: g.id }, g.name)));
+    free.map((g) => el('option', { value: g.id }, groupTitle(g.id))));
   const rSel = el('select', { id: 'acc-grouprole' },
     el('option', { value: 'nestleder' }, 'som nestleder'), el('option', { value: 'leder' }, 'som leder'));
   const dlg = openDialog(
@@ -1915,11 +2019,11 @@ function editAccess(p) {
     el('div', { class: 'field' }, el('span', { class: 'label' }, 'Grupper'),
       assignments.length
         ? el('ul', { class: 'plist' }, assignments.map((a) => el('li', { class: 'arow' },
-          el('span', {}, `${roleLabel(a.role)} · ${groupName(a.group_id)}`),
+          el('span', {}, assignmentText(a.role, a.group_id)),
           el('button', {
             class: 'ghost small muted-btn',
             onclick: async () => {
-              if (!(await ask(`Fjerne ${personName(p)} som ${a.role} i gruppen til ${groupName(a.group_id)}?`, 'Fjern', true))) return;
+              if (!(await ask(`Fjerne ${personName(p)} som ${a.role} i ${groupTitle(a.group_id)}?`, 'Fjern', true))) return;
               const { error } = await supabase.from('group_leaders').delete().eq('group_id', a.group_id).eq('user_id', p.id);
               if (error) return toast(friendlyError(error), 'error');
               dlg.close();
@@ -1970,11 +2074,11 @@ async function showInvite() {
   $('invite-lead').textContent = info.role === 'admin'
     ? `Du er invitert som administrator for smågruppene i ${config.ORG_NAME}. Du får se alle grupper og deltakere.`
     : info.role === 'nestleder'
-      ? `Du er invitert som nestleder i smågruppen til ${info.group_name}.`
+      ? `Du er invitert som nestleder i ${info.group_name} sin smågruppe.`
       : 'Du er invitert som leder for en smågruppe. Gruppen får navnet ditt.';
   const about = {
     nestleder: 'Nestleder betyr neste leder. Du hjelper lederen og lærer underveis, slik at du kan lede en egen gruppe når gruppen multipliseres.',
-    leder: 'Å lede en smågruppe handler først og fremst om å følge Jesus selv, og invitere andre med. Du får støtte underveis, blant annet gjennom en triade med to andre ledere.',
+    leder: 'Å lede en smågruppe handler først og fremst om å følge Jesus selv, og invitere andre med. Du får støtte og hjelp underveis.',
   }[info.role];
   $('invite-about').textContent = about || '';
   $('invite-about').hidden = !about;
@@ -1987,6 +2091,12 @@ async function showInvite() {
   $('invite-loggedin').hidden = !loggedIn;
   $('invite-loggedout').hidden = loggedIn;
   if (loggedIn) $('invite-me').textContent = state.session.user.email;
+  // Invitasjonen gjelder en bestemt e-post, men noen andre er logget inn på denne maskinen
+  const other = loggedIn && info.email && info.email.toLowerCase() !== (state.session.user.email || '').toLowerCase();
+  $('invite-other').hidden = !other;
+  if (other) $('invite-other').textContent = `Invitasjonen er sendt til ${info.email}. Logg inn med den brukeren for å godta den.`;
+  $('invite-accept').hidden = !!other;
+  $('invite-switch').className = other ? 'block' : 'block secondary';
   setInviteMode(state.inviteMode);
 }
 
@@ -2023,6 +2133,15 @@ async function acceptInvite() {
 }
 
 $('invite-accept').addEventListener('click', acceptInvite);
+
+// Logg ut den som er logget inn nå, men behold invitasjonen, så en annen kan logge inn
+$('invite-switch').addEventListener('click', async () => {
+  $('invite-error').hidden = true;
+  state.inviteMode = 'existing';
+  await supabase.auth.signOut();
+  state.session = null;
+  showInvite();
+});
 
 $('invite-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -2105,7 +2224,7 @@ $('btn-logout').addEventListener('click', async () => {
   await supabase.auth.signOut();
   Object.assign(state, {
     me: null, isAdmin: false, groups: [], allGroups: [], leaders: [], members: [], invites: [], profiles: [],
-    triads: [], triadMembers: [], overview: new Map(), health: null, current: null, meetings: [], filterGroup: '', search: '',
+    triads: [], triadMembers: [], overview: new Map(), health: null, current: null, meetings: [], filterGroup: '', filterRole: '', search: '',
     view: 'home', tab: null,
   });
   $('filter-search').value = '';

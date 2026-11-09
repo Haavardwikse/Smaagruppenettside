@@ -136,16 +136,22 @@ Administratorer har fem faner (den femte er **Håndbok**, samme som lederne har)
   Grupper uten nestleder har en liten gul prikk. Trykk på en gruppe for å se den slik lederen ser
   den. Nederst i gruppen kan du endre beskrivelse, invitere leder eller slette en tom gruppe.
   Med **+ Ny gruppe** velger du en leder som har konto, eller inviterer en ny.
-- **Deltakere:** Alle deltakere, med søk og filter. Trykk på en person for å redigere, flytte
-  vedkommende til en annen gruppe eller arkivere. Her kan du også laste ned listen.
+- **Oversikt:** Gruppene vises som «Navn sin smågruppe».
+- **Deltakere:** Alle i gruppene: ledere, nestledere og deltakere. Velg **Alle / Ledere /
+  Nestledere / Deltakere** for å se bare én rolle, og filtrer på gruppe eller søk. Trykk på en
+  deltaker for å redigere, flytte eller arkivere, eller på en leder for å endre tilgangen.
+  **Last ned** gir deltakerne i utvalget som CSV.
 - **Triader:** Sett sammen triader med **+ Ny triade**, med to eller tre ledere. Bare ledere kan
   være i en triade, ikke nestledere. Nederst står hvilke ledere som ikke er i en triade ennå.
 - **Tilgang:** Her gir du nye folk tilgang. Trykk **+ Inviter**, velg **Leder** (for en ny eller
   eksisterende gruppe) eller **Administrator**, og fyll inn navn og e-post (og telefon for ledere).
   Du får en lenke du sender på SMS eller e-post. Personen åpner lenken, lager konto og har tilgang
   med en gang. Under **Venter på å godta** ser du invitasjoner som ikke er brukt ennå. Der kan du
-  sende lenken på nytt eller avbryte den. Under **Har tilgang** står alle som har konto. Trykk på
-  en person for å endre rolle eller grupper.
+  sende lenken på nytt eller avbryte den. Under **Har tilgang** står alle som har konto, delt i
+  Administratorer, Ledere, Nestledere og Uten gruppe, med et rollemerke og hvilken gruppe de leder
+  («Nestleder i Ruben Gustavsen sin smågruppe»). Trykk på en person for å endre rolle eller grupper.
+  Åpner noen en invitasjonslenke mens en annen bruker er logget inn på samme maskin, kan de trykke
+  **Logg inn med en annen bruker**. Invitasjonen blir liggende.
 
 **Legge ned en gruppe:** Åpne gruppen → **Endre beskrivelse** → fjern haken for «Aktiv».
 
@@ -162,6 +168,8 @@ På **Gruppen** ser lederen:
   19–21. Kortet viser datoen tydelig og om oppmøtet er registrert. Trykk **Registrer oppmøte**,
   kryss av dem som var der og lagre. Mandag og tirsdag står det «Neste samling», og oppmøte kan
   registreres fra onsdag. Tid, timer, Fysisk/Digitalt og dato kan endres under **Endre**.
+  Rett under kan lederen velge en **tidligere samling** og trykke **Registrer**. Den nyeste som
+  mangler oppmøte er valgt på forhånd.
   Under knappen står **Legg inn påminnelse i kalenderen** til lederen har gjort det én gang.
 - **Tidligere samlinger:** Når en ny uke starter, flyttes forrige samling hit. Samlinger uten
   oppmøte står som «Ikke registrert» og kan fortsatt åpnes og registreres. **Fjern oppmøtet** gjør

@@ -590,3 +590,29 @@ fieldset.field legend { padding: 0; }
 @media (max-width: 380px) {
   .tabs button { padding: 10px 3px; font-size: .84rem; }
 }
+
+/* Roller: tydelige merker */
+.role-pill.role-admin { background: #101b1f; color: #fff; }
+.role-pill.role-leder { background: #dfe9ec; color: #101b1f; }
+.role-pill.role-nestleder { background: #f1ede5; color: #5b4a2a; }
+.pname .role-pill + .role-pill { margin-left: 4px; }
+.plist-head { display: flex; flex-direction: column; gap: 2px; padding: 14px 4px 6px; font-weight: 700; font-size: .95rem; border-bottom: 1px solid var(--line); }
+.plist-head:first-child { padding-top: 4px; }
+.plist-head .count { color: var(--muted); font-weight: 600; }
+.plist-head .psub { font-weight: 400; }
+/* Filterknapper */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
+.chips button { min-height: 34px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); font-weight: 500; font-size: .88rem; }
+.chips button[aria-pressed=true] { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+/* Tidligere samling, rett under ukens */
+.week-past { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.week-past[hidden] { display: none; }
+.week-past label { display: block; font-size: .88rem; color: var(--muted); margin-bottom: 6px; }
+.week-past-row { display: flex; gap: 8px; }
+.week-past-row select { flex: 1; min-width: 0; margin: 0; }
+.week-past-row button { margin: 0; white-space: nowrap; }
+@media (max-width: 480px) {
+  .week-past-row { flex-direction: column; }
+  .week-past-row button { width: 100%; }
+}

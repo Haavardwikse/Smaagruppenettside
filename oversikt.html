@@ -55,7 +55,9 @@
 
         <div id="invite-loggedin" hidden>
           <p>Du er logget inn som <strong id="invite-me"></strong>.</p>
+          <div class="notice info" id="invite-other" hidden></div>
           <button class="block" id="invite-accept">Godta invitasjonen</button>
+          <button type="button" class="block secondary" id="invite-switch" style="margin-top:10px">Logg inn med en annen bruker</button>
         </div>
 
         <div id="invite-loggedout">
@@ -135,6 +137,13 @@
               <span class="week-status" id="week-status"></span>
             </div>
             <button class="block big" id="btn-attend"><span aria-hidden="true">✓</span> Registrer oppmøte</button>
+            <div class="week-past" id="week-past" hidden>
+              <label for="past-select">Registrere en tidligere samling?</label>
+              <div class="week-past-row">
+                <select id="past-select"></select>
+                <button class="secondary" id="btn-attend-past">Registrer</button>
+              </div>
+            </div>
             <button class="ghost small week-reminder" id="btn-reminder-top" hidden>
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
               Legg inn påminnelse i kalenderen
@@ -322,6 +331,12 @@
         <div class="toolbar">
           <input type="search" id="filter-search" placeholder="Søk på navn, postnummer eller sted" aria-label="Søk">
           <select id="filter-group" aria-label="Gruppe"></select>
+        </div>
+        <div class="chips" id="filter-role" role="group" aria-label="Vis">
+          <button type="button" data-role="">Alle</button>
+          <button type="button" data-role="leder">Ledere</button>
+          <button type="button" data-role="nestleder">Nestledere</button>
+          <button type="button" data-role="deltaker">Deltakere</button>
         </div>
         <p class="hint" id="members-summary"></p>
         <div class="card plain">
