@@ -1000,8 +1000,8 @@ begin
     raise exception 'Samme person er valgt flere ganger';
   end if;
   if exists (select 1 from unnest(p_members) u
-             where not exists (select 1 from public.group_leaders gl where gl.user_id = u)) then
-    raise exception 'Alle i en triade må være leder eller nestleder i en gruppe';
+             where not exists (select 1 from public.group_leaders gl where gl.user_id = u and gl.role = 'leder')) then
+    raise exception 'Bare smågruppeledere kan være i en triade, ikke nestledere';
   end if;
   if v_id is null then
     insert into public.triads (name) values (public.norm_space(p_name)) returning id into v_id;
@@ -1250,6 +1250,11 @@ create policy "triad_members: triade og admin ser" on public.triad_members
 -- =====================================================================
 -- 10. Gi alle grupper riktig navn (lederens)
 -- =====================================================================
+-- Triader er bare for ledere: rydd bort nestledere som ligger i en triade fra før
+delete from public.triad_members tm
+where not exists (select 1 from public.group_leaders gl where gl.user_id = tm.user_id and gl.role = 'leder');
+delete from public.triads t where not exists (select 1 from public.triad_members m where m.triad_id = t.id);
+
 select public.refresh_group_name(id) from public.groups;
 
 

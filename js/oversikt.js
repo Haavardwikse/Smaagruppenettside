@@ -209,7 +209,7 @@ async function route(session) {
   if (!state.isAdmin && state.groups.length === 0) return show('noaccess');
 
   // Start alltid på riktig fane for rollen (hindrer at en admin-fane henger igjen)
-  const tabs = state.isAdmin ? ADMIN_TABS : LEADER_TABS;
+  const tabs = state.isAdmin ? ADMIN_TABS : leaderTabs();
   const valid = tabs.some(([t]) => t === state.tab) || (state.isAdmin && state.tab === 'group');
   if (!state.tab || !valid) state.tab = tabs[0][0];
   state.view = 'home';
@@ -359,8 +359,15 @@ async function reload() {
 //  Faner og meny
 // =====================================================================
 
+/** Triade gjelder bare ledere. En som bare er nestleder, får ikke Triade-fanen. */
+function leaderTabs() {
+  const uid = state.session?.user.id;
+  const isLeder = state.leaders.some((l) => l.user_id === uid && l.role === 'leder');
+  return isLeder ? LEADER_TABS : LEADER_TABS.filter(([id]) => id !== 'triad');
+}
+
 function renderTabs() {
-  const tabs = state.isAdmin ? ADMIN_TABS : LEADER_TABS;
+  const tabs = state.isAdmin ? ADMIN_TABS : leaderTabs();
   const nav = $('tabs');
   nav.innerHTML = '';
   for (const [id, label] of tabs) {
@@ -1589,9 +1596,9 @@ $('btn-export').addEventListener('click', () =>
 //  TRIADER (admin)
 // =====================================================================
 
-/** Alle som leder eller er nestleder i en gruppe. */
+/** Alle som er leder (ikke bare nestleder) for en gruppe. Bare de kan være i en triade. */
 function leaderProfiles() {
-  const ids = [...new Set(state.leaders.map((l) => l.user_id))];
+  const ids = [...new Set(state.leaders.filter((l) => l.role === 'leder').map((l) => l.user_id))];
   return ids.map((id) => {
     const l = state.leaders.find((x) => x.user_id === id);
     return { id, profile: l.profiles, label: personName(l.profiles) };

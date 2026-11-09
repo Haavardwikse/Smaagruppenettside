@@ -138,8 +138,8 @@ Administratorer har fem faner (den femte er **Håndbok**, samme som lederne har)
   Med **+ Ny gruppe** velger du en leder som har konto, eller inviterer en ny.
 - **Deltakere:** Alle deltakere, med søk og filter. Trykk på en person for å redigere, flytte
   vedkommende til en annen gruppe eller arkivere. Her kan du også laste ned listen.
-- **Triader:** Sett sammen triader med **+ Ny triade**, med to eller tre ledere. Nederst står
-  hvilke ledere som ikke er i en triade ennå.
+- **Triader:** Sett sammen triader med **+ Ny triade**, med to eller tre ledere. Bare ledere kan
+  være i en triade, ikke nestledere. Nederst står hvilke ledere som ikke er i en triade ennå.
 - **Tilgang:** Her gir du nye folk tilgang. Trykk **+ Inviter**, velg **Leder** (for en ny eller
   eksisterende gruppe) eller **Administrator**, og fyll inn navn og e-post (og telefon for ledere).
   Du får en lenke du sender på SMS eller e-post. Personen åpner lenken, lager konto og har tilgang
@@ -151,7 +151,8 @@ Administratorer har fem faner (den femte er **Håndbok**, samme som lederne har)
 
 ### For ledere og nestledere
 
-Lederen har tre faner: **Gruppen**, **Triade** og **Håndbok**.
+Lederen har tre faner: **Gruppen**, **Triade** og **Håndbok**. En som bare er nestleder, har ikke
+Triade-fanen, siden triader bare er for ledere.
 
 På **Gruppen** ser lederen:
 
@@ -230,7 +231,7 @@ Reglene ligger i selve databasen, så de gjelder uansett hvordan data kommer inn
   gamle.
 - **Sammenheng:** Oppmøte kan bare registreres på aktive deltakere i egen gruppe, og ikke fram i
   tid. Velges nestlederen fra deltakerlisten, må personen være deltaker i samme gruppe. En triade
-  kan bare bestå av ledere.
+  kan bare bestå av ledere, ikke nestledere.
 - **Datasjekk:** Øverst på Oversikt ser administratoren om noe bør ryddes: grupper uten leder,
   mulige dobbeltregistreringer, utløpte invitasjoner og deltakere som har vært arkivert i over
   ett år.
@@ -281,7 +282,7 @@ Tilgangsreglene er testet mot Postgres med egne brukere for hver rolle. Testene 
 - Besøkende kan bare slå opp postnumre og bruke de fire offentlige funksjonene. Alle tabeller har
   radtilgang (RLS), og alle funksjoner har fast søkesti.
 
-Det er 182 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
+Det er 183 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
 konto, leder, nestleder, leder i annen gruppe og administrator) prøver alt den ikke skal få lov
 til. Oppgradering fra tidligere versjoner er testet uten at data går tapt. Hele flyten er også testet i
 nettleseren på mobil og PC: påmelding, oppmøte, arkivering, nestleder, multiplisering, triader og
