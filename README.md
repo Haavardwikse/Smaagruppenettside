@@ -35,7 +35,8 @@ supabase/postnummer.sql Postnummerregisteret (Bring), brukes til å fylle ut ste
 
 1. Gå til [supabase.com](https://supabase.com), lag en gratis konto og trykk **New project**.
 2. Gi prosjektet et navn (f.eks. `smagrupper`), velg et sterkt databasepassord og
-   **velg en region i EU** (f.eks. Frankfurt). Det er viktig for personvernet.
+   **velg en region i Europa** (f.eks. Frankfurt eller London). Det er viktig for personvernet.
+   Står det noe annet enn London på personvern.html, så rett teksten der.
 3. Når prosjektet er klart: gå til **SQL Editor → New query**, lim inn hele innholdet i
    `supabase/schema.sql` og trykk **Run**. Du skal få «Success».
 4. Gjør det samme med `supabase/postnummer.sql`. Den legger inn alle norske postnumre, slik at
@@ -219,7 +220,7 @@ Reglene ligger i selve databasen, så de gjelder uansett hvordan data kommer inn
   Da logger du inn på supabase.com og trykker «Restore».
 - **Sikkerhetskopi:** Last ned «Alle deltakere» som CSV en gang i blant og lagre filen et trygt sted.
 - **Personvern:** Medlemskap i en menighetsgruppe kan si noe om tro, som er en særlig beskyttet
-  opplysning. Bruk EU-region, ha samtykke, og slett folk som har sluttet (arkiverte kan slettes
+  opplysning. Bruk en europeisk region, ha samtykke, og slett folk som har sluttet (arkiverte kan slettes
   for godt). Supabase har en databehandleravtale (DPA) som dere bør godta.
 - **Ingen offentlig gruppeliste:** Påmeldingssiden fungerer bare med lenken fra lederen. Det finnes
   ingen liste over grupper eller ledernavn som hvem som helst kan se.

@@ -176,6 +176,10 @@ create index if not exists group_leaders_user_id_idx  on public.group_leaders(us
 create index if not exists meetings_group_date_idx    on public.meetings(group_id, meeting_date desc);
 create index if not exists attendance_member_id_idx   on public.attendance(member_id);
 create index if not exists group_invites_group_id_idx on public.group_invites(group_id);
+create index if not exists group_invites_created_by_idx on public.group_invites(created_by);
+create index if not exists group_invites_member_id_idx  on public.group_invites(member_id);
+create index if not exists group_invites_used_by_idx    on public.group_invites(used_by);
+create index if not exists group_leaders_member_id_idx  on public.group_leaders(member_id);
 
 
 -- =====================================================================
@@ -1043,12 +1047,12 @@ create policy "groups: admin sletter" on public.groups
 create policy "profiles: se egen, medledere, triade, admin" on public.profiles
   for select to authenticated
   using (
-    id = auth.uid() or public.is_admin() or public.in_my_triad(id)
+    id = (select auth.uid()) or public.is_admin() or public.in_my_triad(id)
     or exists (select 1 from public.group_leaders gl where gl.user_id = profiles.id and public.leads_group(gl.group_id)));
-create policy "profiles: endre egen" on public.profiles
-  for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
-create policy "profiles: admin endrer" on public.profiles
-  for update to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "profiles: endre egen eller admin" on public.profiles
+  for update to authenticated
+  using (id = (select auth.uid()) or public.is_admin())
+  with check (id = (select auth.uid()) or public.is_admin());
 
 -- LEDERE
 create policy "leaders: egne grupper, triade, admin" on public.group_leaders
@@ -1092,7 +1096,7 @@ create policy "invites: ledere og admin sletter" on public.group_invites
 -- TRIADER (lages via save_triad)
 create policy "triads: medlemmer og admin ser" on public.triads
   for select to authenticated
-  using (public.is_admin() or exists (select 1 from public.triad_members m where m.triad_id = id and m.user_id = auth.uid()));
+  using (public.is_admin() or exists (select 1 from public.triad_members m where m.triad_id = id and m.user_id = (select auth.uid())));
 create policy "triads: admin sletter" on public.triads
   for delete to authenticated using (public.is_admin());
 create policy "triad_members: triade og admin ser" on public.triad_members
