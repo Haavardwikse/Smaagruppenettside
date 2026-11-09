@@ -220,6 +220,7 @@ export function attendanceRows(meetings, people) {
 export function buildExport({ groups, meetings, members, folder }) {
   const byGroup = new Map();
   for (const mt of meetings) {
+    if (!(mt.attendance || []).length) continue; // tomme samlinger tas ikke med
     if (!byGroup.has(mt.group_id)) byGroup.set(mt.group_id, []);
     byGroup.get(mt.group_id).push(mt);
   }

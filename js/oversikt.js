@@ -58,6 +58,16 @@ async function q(promise) {
 
 const today = () => new Date().toLocaleDateString('sv-SE');
 const isoDay = (ts) => new Date(ts).toLocaleDateString('sv-SE');
+/** Onsdagen i samme uke (mandag–søndag) som datoen. */
+function wednesdayOf(day) {
+  const [y, m, d] = day.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() - ((dt.getDay() + 6) % 7) + 2);
+  return dt.toLocaleDateString('sv-SE');
+}
+const isWednesday = (day) => wednesdayOf(day) === day;
+/** En samling teller bare når noen er registrert som til stede. */
+const hasAttendance = (mt) => (mt?.attendance || []).length > 0;
 
 function longDate(day) {
   const [y, m, d] = day.split('-').map(Number);
@@ -247,14 +257,29 @@ function showReminder() {
     el('p', { class: 'hint', style: 'margin:-4px 0 14px' },
       'Legg inn en påminnelse i kalenderen din hver onsdag kl. 21:20. Trykker du på lenken i påminnelsen, kommer du rett til oppmøtet.'),
     el('div', { class: 'reminder-buttons' },
-      el('a', { class: 'btn', href: 'paaminnelse.ics', download: 'Registrer oppmøte.ics' }, 'iPhone, Mac eller Outlook'),
-      el('a', { class: 'btn secondary', href: google, target: '_blank', rel: 'noopener' }, 'Google Kalender (Android)')),
+      el('a', { class: 'btn', href: 'paaminnelse.ics', download: 'Registrer oppmøte.ics', onclick: markReminderAdded }, 'iPhone, Mac eller Outlook'),
+      el('a', { class: 'btn secondary', href: google, target: '_blank', rel: 'noopener', onclick: markReminderAdded }, 'Google Kalender (Android)')),
     el('p', { class: 'hint', style: 'margin-top:12px' },
       'Google Kalender bruker din vanlige varslingstid. Sett varselet til «Når aktiviteten starter», så kommer det kl. 21:20.'),
     el('div', { class: 'actions', style: 'margin-top:14px' },
-      el('button', { class: 'secondary', onclick: (e) => e.target.closest('dialog').close() }, 'Lukk')));
+      el('button', { class: 'secondary', onclick: (e) => e.target.closest('dialog').close() }, 'Lukk'),
+      state.me?.reminder_added_at ? null : el('button', {
+        class: 'ghost small',
+        onclick: (e) => { markReminderAdded(); e.target.closest('dialog').close(); },
+      }, 'Jeg har den allerede')));
+}
+
+/** Husk (på brukeren, alle enheter) at påminnelsen er lagt inn, og skjul den tydelige knappen. */
+async function markReminderAdded() {
+  if (!state.me || state.me.reminder_added_at) return;
+  const now = new Date().toISOString();
+  state.me.reminder_added_at = now;
+  $('btn-reminder-top').hidden = true;
+  const { error } = await supabase.from('profiles').update({ reminder_added_at: now }).eq('id', state.me.id);
+  if (error) console.warn('Kunne ikke lagre påminnelsesvalget', error);
 }
 $('btn-reminder').addEventListener('click', showReminder);
+$('btn-reminder-top').addEventListener('click', showReminder);
 
 // =====================================================================
 //  Data
@@ -262,8 +287,10 @@ $('btn-reminder').addEventListener('click', showReminder);
 
 async function loadAll() {
   const uid = state.session.user.id;
+  // Sørger for at hver aktive gruppe har en samling hver onsdag (tom til oppmøtet registreres)
+  await q(supabase.rpc('ensure_weekly_meetings'));
   const [me, groups, leaders, members, invites, triads, triadMembers] = await Promise.all([
-    q(supabase.from('profiles').select('id, email, full_name, role, phone').eq('id', uid).maybeSingle()),
+    q(supabase.from('profiles').select('id, email, full_name, role, phone, reminder_added_at').eq('id', uid).maybeSingle()),
     q(supabase.from('groups').select('id, name, description, active, created_at').order('name')),
     q(supabase.from('group_leaders').select('group_id, user_id, role, member_id, profiles(full_name, email, phone)')),
     q(supabase.from('members').select('id, member_no, group_id, full_name, birth_year, gender, postal_code, city, archived_at, created_at').order('full_name')),
@@ -435,7 +462,7 @@ function renderGroupView() {
 
   const active = activeIn(g.id);
   $('g-count').textContent = active.length;
-  $('btn-attend').disabled = active.length === 0;
+  renderWeekCard(active);
   $('btn-delete-group').hidden = state.members.some((m) => m.group_id === g.id);
 
   renderSplitHint(g, active.length);
@@ -669,7 +696,7 @@ document.addEventListener('click', (e) => { if (e.target.closest('[data-why]')) 
 
 function recentFor(m) {
   const joined = isoDay(m.created_at);
-  return state.meetings.filter((mt) => mt.meeting_date >= joined).slice(0, 5).reverse()
+  return state.meetings.filter((mt) => hasAttendance(mt) && mt.meeting_date >= joined).slice(0, 5).reverse()
     .map((mt) => ({ date: mt.meeting_date, present: mt.attendance.some((a) => a.member_id === m.id) }));
 }
 
@@ -718,7 +745,7 @@ function openPerson(m, { adminList = false } = {}) {
   fact('Deltaker-ID', m.member_no ? `#${m.member_no}` : null);
   if (!adminList) {
     const joined = isoDay(m.created_at);
-    const relevant = state.meetings.filter((mt) => mt.meeting_date >= joined);
+    const relevant = state.meetings.filter((mt) => hasAttendance(mt) && mt.meeting_date >= joined);
     if (relevant.length) {
       const present = relevant.filter((mt) => mt.attendance.some((a) => a.member_id === m.id)).length;
       fact('Oppmøte', `${present} av ${relevant.length} samlinger`);
@@ -883,10 +910,44 @@ function renderArchived(gid) {
   }
 }
 
+// ---- Ukens samling ----
+
+function timeRange(src) {
+  const start = hhmm(src?.start_time);
+  const [h, m] = start.split(':').map(Number);
+  const end = h * 60 + m + Math.round(Number(src?.hours ?? 2) * 60);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `kl. ${start}–${pad(Math.floor(end / 60) % 24)}:${pad(end % 60)}`;
+}
+
+function renderWeekCard(active) {
+  const wed = wednesdayOf(today());
+  const mt = state.meetings.find((x) => x.meeting_date === wed);
+  const future = wed > today();
+  const done = hasAttendance(mt);
+  const src = mt || state.meetings.find(hasAttendance) || null;
+  $('week-label').textContent = future ? 'Neste samling' : 'Denne ukens samling';
+  $('week-date').textContent = longDate(wed);
+  $('week-sub').textContent = `${timeRange(src)} · ${src?.mode || 'Fysisk'}`;
+  const status = $('week-status');
+  status.className = 'week-status' + (done ? ' done' : '');
+  status.textContent = future ? '' : done ? `${mt.attendance.length} av ${active.length} til stede` : 'Ikke registrert';
+  const btn = $('btn-attend');
+  btn.disabled = future || active.length === 0;
+  btn.classList.toggle('secondary', done);
+  btn.lastChild.textContent = future ? ' Kan registreres fra onsdag' : done ? ' Endre oppmøte' : ' Registrer oppmøte';
+  // Tydelig tilbud om kalenderpåminnelse til lederen har lagt den inn én gang
+  const uid = state.session?.user.id;
+  const leadsThis = state.leaders.some((l) => l.user_id === uid && l.group_id === state.current);
+  $('btn-reminder-top').hidden = !leadsThis || !!state.me?.reminder_added_at;
+}
+
 // ---- Tidligere samlinger ----
 
 function renderMeetings() {
-  const mts = state.meetings;
+  // Alle samlinger unntatt ukens (den står i kortet øverst). Tomme samlinger vises som «Ikke registrert».
+  const wed = wednesdayOf(today());
+  const mts = state.meetings.filter((mt) => mt.meeting_date !== wed && (isWednesday(mt.meeting_date) || hasAttendance(mt)));
   $('meetings-box').hidden = mts.length === 0;
   $('meetings-count').textContent = mts.length;
   const list = $('meetings');
@@ -895,7 +956,9 @@ function renderMeetings() {
     list.append(el('li', {},
       el('button', { class: 'mrow', onclick: () => openAttend(mt.meeting_date) },
         el('span', {}, longDate(mt.meeting_date)),
-        el('span', { class: 'psub' }, `${mt.attendance.length} til stede · kl. ${hhmm(mt.start_time)}`))));
+        hasAttendance(mt)
+          ? el('span', { class: 'psub' }, `${mt.attendance.length} til stede · kl. ${hhmm(mt.start_time)}`)
+          : el('span', { class: 'psub not-registered' }, 'Ikke registrert'))));
   }
 }
 
@@ -936,12 +999,16 @@ $('btn-export-group').addEventListener('click', () => downloadCsv(activeIn(state
 //  OPPMØTE
 // =====================================================================
 
-function openAttend(date = today()) {
+function openAttend(date = wednesdayOf(today())) {
+  if (date > today()) {
+    return toast(`Samlingen er ${longDate(date).toLowerCase()}. Oppmøte kan registreres fra samme dag.`);
+  }
   state.attend.date = date;
   $('attend-date').value = date;
   $('attend-date').max = today();
   loadAttendForDate();
   setView('attend');
+  window.scrollTo(0, 0);
 }
 
 const hhmm = (t) => String(t || '19:00').slice(0, 5);
@@ -971,13 +1038,16 @@ function toggleMeetDetails(open) {
 
 function loadAttendForDate() {
   const mt = state.meetings.find((x) => x.meeting_date === state.attend.date);
-  // Ny samling: samme tid som forrige samling (listen er sortert med nyeste først).
-  setMeetDetails(mt || state.meetings[0] || null);
+  // Samlingen har egen tid; finnes den ikke, brukes tiden fra forrige samling med oppmøte.
+  setMeetDetails(mt || state.meetings.find(hasAttendance) || null);
   toggleMeetDetails(false);
   state.attend.meetingId = mt?.id || null;
   state.attend.present = new Set(mt ? mt.attendance.map((a) => a.member_id) : []);
-  $('attend-existing').textContent = mt ? 'Oppmøte er allerede registrert denne dagen. Du kan endre det.' : '';
-  $('attend-delete').hidden = !mt;
+  $('attend-title').textContent = longDate(state.attend.date);
+  $('attend-existing').textContent = hasAttendance(mt)
+    ? 'Oppmøtet er registrert. Du kan endre det.'
+    : state.attend.date === wednesdayOf(today()) ? 'Denne ukens samling' : 'Ikke registrert ennå';
+  $('attend-delete').hidden = !hasAttendance(mt);
   renderAttendList();
 }
 
@@ -1018,8 +1088,13 @@ $('attend-mode').addEventListener('change', updateMeetSummary);
 $('attend-back').addEventListener('click', () => setView('home'));
 $('attend-date').addEventListener('change', (e) => {
   if (!e.target.value) return;
+  if (e.target.value > today()) {
+    e.target.value = state.attend.date;
+    return toast('Datoen kan ikke være fram i tid.', 'error');
+  }
   state.attend.date = e.target.value;
   loadAttendForDate();
+  toggleMeetDetails(true);
 });
 $('attend-all').addEventListener('click', () => {
   const people = activeIn(state.current);
@@ -1033,6 +1108,11 @@ $('attend-save').addEventListener('click', async () => {
   if (!date) return toast('Velg en dato.', 'error');
   if (date > today()) return toast('Datoen kan ikke være fram i tid.', 'error');
   const ids = activeIn(state.current).filter((m) => state.attend.present.has(m.id)).map((m) => m.id);
+  if (!ids.length) {
+    const mt = state.meetings.find((x) => x.meeting_date === date);
+    if (!hasAttendance(mt)) return toast('Kryss av for dem som var til stede.');
+    if (!(await ask('Ingen er krysset av. Vil du fjerne oppmøtet for denne samlingen?', 'Fjern oppmøtet', true))) return;
+  }
   const start = $('attend-start').value;
   const hours = Number(String($('attend-hours').value).replace(',', '.'));
   if (!/^\d{2}:\d{2}/.test(start)) { toggleMeetDetails(true); return toast('Skriv inn starttid, f.eks. 19:00.', 'error'); }
@@ -1045,17 +1125,19 @@ $('attend-save').addEventListener('click', async () => {
   });
   btn.disabled = false;
   if (error) return toast(friendlyError(error), 'error');
-  toast(`Oppmøte lagret: ${ids.length} av ${activeIn(state.current).length} til stede.`);
+  toast(ids.length
+    ? `Oppmøte lagret for ${longDate(date).toLowerCase()}: ${ids.length} av ${activeIn(state.current).length} til stede.`
+    : 'Oppmøtet er fjernet.');
   setView('home');
   await reload();
 });
 
 $('attend-delete').addEventListener('click', async () => {
   if (!state.attend.meetingId) return;
-  if (!(await ask(`Slette samlingen ${longDate(state.attend.date).toLowerCase()} og oppmøtet som er registrert?`, 'Slett', true))) return;
-  const { error } = await supabase.from('meetings').delete().eq('id', state.attend.meetingId);
+  if (!(await ask(`Fjerne oppmøtet for ${longDate(state.attend.date).toLowerCase()}? Samlingen blir liggende i historikken uten oppmøte.`, 'Fjern oppmøtet', true))) return;
+  const { error } = await supabase.rpc('save_attendance', { p_group: state.current, p_date: state.attend.date, p_member_ids: [] });
   if (error) return toast(friendlyError(error), 'error');
-  toast('Samlingen er slettet.');
+  toast('Oppmøtet er fjernet.');
   setView('home');
   await reload();
 });
@@ -1692,14 +1774,15 @@ function exportAttendance() {
       const dmy = (d) => d.split('-').reverse().join('.');
       const label = whole ? period.value : `${dmy(from.value)}–${dmy(to.value)}`;
       const folder = `Fremmøte smågrupper ${label}`.replace(/[\\/:*?"<>|]/g, '-');
-      const { files, zip } = buildExport({ groups: state.allGroups, meetings, members, folder });
+      const used = meetings.filter(hasAttendance); // tomme samlinger tas ikke med
+      const { files, zip } = buildExport({ groups: state.allGroups, meetings: used, members, folder });
       if (!files.length) { go.disabled = false; go.textContent = 'Last ned'; return fail('Fant ingen grupper å eksportere.'); }
       const a = el('a', { href: URL.createObjectURL(new Blob([zip], { type: 'application/zip' })), download: `${folder}.zip` });
       document.body.append(a);
       a.click();
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
       dlg.close();
-      toast(`Lastet ned ${files.length} ${files.length === 1 ? 'fil' : 'filer'} (${meetings.length} samlinger).`);
+      toast(`Lastet ned ${files.length} ${files.length === 1 ? 'fil' : 'filer'} (${used.length} samlinger med oppmøte).`);
     } catch (err) {
       go.disabled = false;
       go.textContent = 'Last ned';

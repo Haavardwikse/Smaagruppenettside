@@ -130,8 +130,8 @@ Administratorer har fire faner:
 - **Oversikt:** **Eksporter** gir en mappe (zip) med én Excel-fil per gruppe, i samme oppsett som
   fremmøtearket: dato, starttid, «Hvordan er samlingen gjennomført?» og timer øverst, deretter én rad
   per deltaker (navn, postnummer, poststed, telefon, kjønn, fødselsår) med «x» for oppmøte. Velg år
-  eller egne datoer. Filene heter det samme som gruppene. Deltakere som har sluttet, men var med i
-  perioden, kommer også med.
+  eller egne datoer. Filene heter det samme som gruppene. Bare samlinger med registrert oppmøte tas
+  med. Deltakere som har sluttet, men var med i perioden, kommer også med.
   Under knappene: alle grupper som kort, med nestleder, antall deltakere og når gruppen sist samlet seg.
   Grupper uten nestleder har en liten gul prikk. Trykk på en gruppe for å se den slik lederen ser
   den. Nederst i gruppen kan du endre beskrivelse, invitere leder eller slette en tom gruppe.
@@ -157,17 +157,21 @@ På **Gruppen** ser lederen:
 
 - **Leder og nestleder** med telefon og e-post. Mangler gruppen nestleder, står det «Ingen
   nestleder ennå» med knappen **Velg nestleder**.
-- **Registrer oppmøte:** Trykk på dem som er til stede og lagre. Under datoen står starttid, timer
-  og om samlingen var fysisk eller digital (f.eks. «Kl. 19:00 · 2 timer · Fysisk»). Det arves fra
-  forrige samling, så trykk **Endre** bare når noe var annerledes. Under **Tidligere samlinger**
-  kan du åpne og rette en samling.
+- **Denne ukens samling** (øverst): Hver aktiv gruppe får automatisk en samling hver onsdag kl.
+  19–21. Kortet viser datoen tydelig og om oppmøtet er registrert. Trykk **Registrer oppmøte**,
+  kryss av dem som var der og lagre. Mandag og tirsdag står det «Neste samling», og oppmøte kan
+  registreres fra onsdag. Tid, timer, Fysisk/Digitalt og dato kan endres under **Endre**.
+  Under knappen står **Legg inn påminnelse i kalenderen** til lederen har gjort det én gang.
+- **Tidligere samlinger:** Når en ny uke starter, flyttes forrige samling hit. Samlinger uten
+  oppmøte står som «Ikke registrert» og kan fortsatt åpnes og registreres. **Fjern oppmøtet** gjør
+  en samling tom igjen. Tomme samlinger tas ikke med i eksporten eller statistikken.
 - **Deltakerne:** Prikkene viser de siste samlingene, og en fylt prikk betyr til stede.
   Trykk på en person for å redigere eller arkivere.
 - **+ Legg til** gir en påmeldingslenke som lederen sender til dem som skal være med (SMS,
   e-post eller kopier). De fyller inn opplysningene selv og havner rett i gruppen. Ledere
   legger ikke inn deltakere selv. Det kan bare en administrator gjøre.
 - **Arkiverte:** Folk som har sluttet. De kan gjenopprettes eller slettes for godt.
-- **Påminnelse i kalenderen** (nederst): legger inn en påminnelse hver onsdag kl. 21:20 om å
+- **Påminnelse i kalenderen** (også nederst, alltid tilgjengelig): legger inn en påminnelse hver onsdag kl. 21:20 om å
   registrere oppmøte. Det finnes én knapp for iPhone, Mac og Outlook, og én for Google Kalender.
   Lenken i påminnelsen går rett til oppmøtet (`oversikt.html#oppmote`). Google bruker lederens
   vanlige varslingstid, så der må varselet settes til «Når aktiviteten starter».
@@ -267,7 +271,7 @@ Tilgangsreglene er testet mot Postgres med egne brukere for hver rolle. Testene 
 - Besøkende kan bare slå opp postnumre og bruke de fire offentlige funksjonene. Alle tabeller har
   radtilgang (RLS), og alle funksjoner har fast søkesti.
 
-Det er 155 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
+Det er 178 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
 konto, leder, nestleder, leder i annen gruppe og administrator) prøver alt den ikke skal få lov
 til. Oppgradering fra tidligere versjoner er testet uten at data går tapt. Hele flyten er også testet i
 nettleseren på mobil og PC: påmelding, oppmøte, arkivering, nestleder, multiplisering, triader og

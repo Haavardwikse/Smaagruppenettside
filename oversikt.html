@@ -124,10 +124,24 @@
             <div class="meta" id="g-meta"></div>
           </div>
 
+          <div class="week-card" id="week-card">
+            <div class="week-top">
+              <div>
+                <div class="eyebrow" id="week-label">Denne ukens samling</div>
+                <div class="week-date" id="week-date"></div>
+                <div class="week-sub" id="week-sub"></div>
+              </div>
+              <span class="week-status" id="week-status"></span>
+            </div>
+            <button class="block big" id="btn-attend"><span aria-hidden="true">✓</span> Registrer oppmøte</button>
+            <button class="ghost small week-reminder" id="btn-reminder-top" hidden>
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+              Legg inn påminnelse i kalenderen
+            </button>
+          </div>
           <div class="leaders-card" id="g-leaders"></div>
           <div id="split-hint"></div>
 
-          <button class="block big" id="btn-attend"><span aria-hidden="true">✓</span> Registrer oppmøte</button>
 
           <div class="card plain">
             <div class="card-head">
@@ -165,17 +179,18 @@
         <!-- Oppmøte -->
         <div id="attend" hidden>
           <button class="ghost back" id="attend-back">← Tilbake</button>
-          <h1>Oppmøte</h1>
-          <div class="field" style="max-width:260px">
-            <label for="attend-date">Dato</label>
-            <input type="date" id="attend-date">
-            <div class="hint" id="attend-existing"></div>
-          </div>
+          <div class="eyebrow">Oppmøte for samlingen</div>
+          <h1 id="attend-title"></h1>
+          <div class="hint" id="attend-existing" style="margin:-6px 0 10px"></div>
           <div class="meet-line">
             <span id="attend-summary"></span>
             <button type="button" class="ghost small" id="attend-details-toggle" aria-expanded="false" aria-controls="attend-details">Endre</button>
           </div>
           <div class="meet-edit" id="attend-details" hidden>
+            <div class="field meet-date">
+              <label for="attend-date">Dato</label>
+              <input type="date" id="attend-date">
+            </div>
             <div class="field">
               <label for="attend-start">Starttid</label>
               <input type="time" id="attend-start" step="300">
@@ -196,7 +211,7 @@
           <ul class="attend-list" id="attend-list"></ul>
           <div class="sticky-actions">
             <button class="block" id="attend-save">Lagre oppmøte</button>
-            <button class="ghost small danger-text" id="attend-delete" hidden>Slett denne samlingen</button>
+            <button class="ghost small danger-text" id="attend-delete" hidden>Fjern oppmøtet</button>
           </div>
         </div>
 

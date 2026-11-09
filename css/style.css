@@ -541,3 +541,18 @@ fieldset.field legend { padding: 0; }
 
 .reminder-buttons { display: grid; gap: 10px; }
 .reminder-buttons .btn { text-align: center; }
+
+/* Ukens samling */
+.week-card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 18px; }
+.week-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.week-date { font-size: 1.35rem; font-weight: 700; line-height: 1.25; margin-top: 2px; }
+.week-sub { color: var(--muted); font-size: .92rem; margin-top: 2px; }
+.week-status { font-size: .82rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; background: var(--bg); color: var(--muted); }
+.week-status.done { background: var(--primary-soft); color: var(--ink); }
+.week-status:empty { display: none; }
+.week-card #btn-attend { margin: 0; }
+.meet-edit .meet-date { grid-column: 1 / -1; max-width: 220px; }
+.mrow .psub.not-registered { font-style: italic; }
+
+.week-card .week-reminder { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 10px; color: var(--ink); }
+.week-card .week-reminder[hidden] { display: none; }

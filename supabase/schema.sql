@@ -1,6 +1,6 @@
 -- =====================================================================
 --  Smågrupper – Bergen Frikirke · databaseoppsett for Supabase
---  Versjon 7
+--  Versjon 8
 --
 --  Kjør hele filen i Supabase: SQL Editor → New query → Run.
 --  Kjør deretter postnummer.sql på samme måte (postnummerregisteret).
@@ -91,6 +91,8 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 alter table public.profiles add column if not exists phone text;
+-- Når lederen la inn kalenderpåminnelsen (da skjules knappen ved «Registrer oppmøte»)
+alter table public.profiles add column if not exists reminder_added_at timestamptz;
 
 -- Deltakerne. member_no er deltaker-ID-en (et løpenummer som aldri gjenbrukes).
 create table if not exists public.members (
@@ -548,7 +550,7 @@ end $$;
 create or replace function public.schema_version()
 returns int
 language sql immutable set search_path = public
-as $$ select 7; $$;
+as $$ select 8; $$;
 
 -- Offentlig: navnet på én gruppe (fra påmeldingslenken). Gruppelisten er ikke offentlig.
 drop function if exists public.group_public_info(uuid);
@@ -650,8 +652,13 @@ begin
   if p_mode is not null and p_mode not in ('Fysisk', 'Digitalt') then
     raise exception 'Velg Fysisk eller Digitalt.';
   end if;
-  select start_time, hours, mode into v_start, v_hours, v_mode
-  from public.meetings where group_id = p_group order by meeting_date desc limit 1;
+  if p_date > (now() at time zone 'Europe/Oslo')::date then
+    raise exception 'Samlingen har ikke vært ennå. Oppmøte kan registreres fra samme dag.';
+  end if;
+  select m.start_time, m.hours, m.mode into v_start, v_hours, v_mode
+  from public.meetings m
+  where m.group_id = p_group and exists (select 1 from public.attendance a where a.meeting_id = m.id)
+  order by m.meeting_date desc limit 1;
 
   insert into public.meetings (group_id, meeting_date, start_time, hours, mode)
   values (p_group, p_date,
@@ -669,6 +676,43 @@ begin
   select v_id, m.id from public.members m
   where m.group_id = p_group and m.archived_at is null and m.id = any(coalesce(p_member_ids, '{}'));
   return v_id;
+end;
+$$;
+
+-- Ukentlige samlinger: hver aktive gruppe får en samling hver onsdag (kl. 19–21 som standard),
+-- fra første onsdag etter at gruppen ble laget og til og med i dag. Kalles når noen åpner siden.
+-- En samling uten registrert oppmøte er «tom»: den vises i historikken, men ikke i eksport/statistikk.
+create or replace function public.ensure_weekly_meetings()
+returns int
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_today date := (now() at time zone 'Europe/Oslo')::date;
+  n int;
+begin
+  if auth.uid() is null then
+    raise exception 'Du må være logget inn';
+  end if;
+  insert into public.meetings (group_id, meeting_date, start_time, hours, mode)
+  select g.id, w.d,
+         coalesce(last.start_time, '19:00'), coalesce(last.hours, 2), coalesce(last.mode, 'Fysisk')
+  from public.groups g
+  cross join lateral (
+    select greatest((g.created_at at time zone 'Europe/Oslo')::date, v_today - 730) as start
+  ) s
+  cross join lateral (
+    select (gs)::date as d
+    from generate_series((s.start + ((10 - extract(isodow from s.start)::int) % 7))::timestamp, v_today::timestamp, interval '7 days') gs
+  ) w
+  left join lateral (
+    select m.start_time, m.hours, m.mode from public.meetings m
+    where m.group_id = g.id and exists (select 1 from public.attendance a where a.meeting_id = m.id)
+    order by m.meeting_date desc limit 1
+  ) last on true
+  where g.active and (public.is_admin() or public.leads_group(g.id))
+  on conflict (group_id, meeting_date) do nothing;
+  get diagnostics n = row_count;
+  return n;
 end;
 $$;
 
@@ -985,11 +1029,14 @@ begin
   end if;
   return query
   select g.id,
-         (select max(m.meeting_date) from public.meetings m where m.group_id = g.id),
-         (select count(*)::int from public.meetings m where m.group_id = g.id and m.meeting_date > current_date - 90),
+         (select max(m.meeting_date) from public.meetings m where m.group_id = g.id
+            and exists (select 1 from public.attendance a where a.meeting_id = m.id)),
+         (select count(*)::int from public.meetings m where m.group_id = g.id and m.meeting_date > current_date - 90
+            and exists (select 1 from public.attendance a where a.meeting_id = m.id)),
          (select round(avg(c), 1) from (
             select (select count(*) from public.attendance a where a.meeting_id = m.id) c
-            from public.meetings m where m.group_id = g.id and m.meeting_date > current_date - 90) x)
+            from public.meetings m where m.group_id = g.id and m.meeting_date > current_date - 90) x
+          where c > 0)
   from public.groups g;
 end;
 $$;
@@ -1054,6 +1101,7 @@ grant execute on function public.leads_group(uuid)                             t
 grant execute on function public.in_my_triad(uuid)                             to authenticated;
 grant execute on function public.is_triad_group(uuid)                          to authenticated;
 grant execute on function public.save_attendance(uuid, date, uuid[], time, numeric, text) to authenticated;
+grant execute on function public.ensure_weekly_meetings()                      to authenticated;
 grant execute on function public.create_invite(uuid, text, text, text, text, uuid) to authenticated;
 grant execute on function public.accept_invite(text)                           to authenticated;
 grant execute on function public.create_admin_invite(text, text, text)         to authenticated;
@@ -1083,7 +1131,7 @@ grant select on public.postal_codes to anon, authenticated;
 grant select, insert, delete                     on public.groups        to authenticated;
 grant update (description, active)               on public.groups        to authenticated;
 grant select                                     on public.profiles      to authenticated;
-grant update (full_name, role, phone)            on public.profiles      to authenticated;
+grant update (full_name, role, phone, reminder_added_at) on public.profiles to authenticated;
 grant select, insert, delete                     on public.group_leaders to authenticated;
 grant update (role, member_id)                   on public.group_leaders to authenticated;
 grant select, delete                             on public.members       to authenticated;
