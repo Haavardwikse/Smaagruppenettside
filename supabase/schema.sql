@@ -1,6 +1,6 @@
 -- =====================================================================
 --  Smågrupper – Bergen Frikirke · databaseoppsett for Supabase
---  Versjon 9
+--  Versjon 10
 --
 --  Kjør hele filen i Supabase: SQL Editor → New query → Run.
 --  Kjør deretter postnummer.sql på samme måte (postnummerregisteret).
@@ -80,6 +80,8 @@ create table if not exists public.groups (
   active      boolean not null default true,
   created_at  timestamptz not null default now()
 );
+-- Slettede grupper ligger i «Slettede grupper» (active = false) til en administrator sletter dem for godt
+alter table public.groups add column if not exists deleted_at timestamptz;
 
 -- Brukerkontoer (ledere, nestledere, administratorer). E-posten er unik.
 create table if not exists public.profiles (
@@ -485,6 +487,28 @@ create trigger group_name_from_profile
   after update of full_name on public.profiles
   for each row execute function public.trg_profile_name();
 
+-- Slettet gruppe: noter når, og avbryt invitasjoner som ikke er brukt
+create or replace function public.trg_group_deleted()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if new.active then
+    new.deleted_at := null;
+  else
+    new.deleted_at := coalesce(old.deleted_at, now());
+    if old.active then
+      delete from public.group_invites where group_id = new.id and used_at is null;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists group_deleted on public.groups;
+create trigger group_deleted
+  before update of active on public.groups
+  for each row execute function public.trg_group_deleted();
+
 
 -- =====================================================================
 -- 5. Rydd eksisterende data og legg på kontroller
@@ -550,7 +574,7 @@ end $$;
 create or replace function public.schema_version()
 returns int
 language sql immutable set search_path = public
-as $$ select 9; $$;
+as $$ select 10; $$;
 
 -- Offentlig: navnet på én gruppe (fra påmeldingslenken). Gruppelisten er ikke offentlig.
 drop function if exists public.group_public_info(uuid);
@@ -758,6 +782,9 @@ begin
     raise exception 'Ugyldig rolle';
   end if;
   perform public.check_invitee(p_name, p_email, p_phone);
+  if not exists (select 1 from public.groups where id = p_group and active) then
+    raise exception 'Gruppen er slettet. Gjenopprett den først.';
+  end if;
   if exists (select 1 from public.group_leaders gl join public.profiles p on p.id = gl.user_id
              where gl.group_id = p_group and p.email = public.norm_email(p_email)) then
     raise exception 'Personen er allerede leder i denne gruppen.';
@@ -851,6 +878,9 @@ begin
     return null;
   end if;
 
+  if not exists (select 1 from public.groups where id = v.group_id and active) then
+    raise exception 'Gruppen finnes ikke lenger. Ta kontakt med den som sendte invitasjonen.';
+  end if;
   v_group := v.group_id;
   -- Én leder per gruppe: har gruppen fått en annen leder i mellomtiden, får denne lederen en ny gruppe
   if v.role = 'leder' and exists (select 1 from public.group_leaders
@@ -1088,6 +1118,24 @@ end;
 $$;
 
 -- Admin: rydd bort utløpte invitasjoner
+-- Slett en gruppe for godt, med deltakere, samlinger og oppmøte.
+-- Bare administratorer, og bare grupper som allerede ligger i «Slettede grupper».
+create or replace function public.purge_group(p_group uuid)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Bare administratorer kan slette grupper for godt';
+  end if;
+  if not exists (select 1 from public.groups where id = p_group and not active) then
+    raise exception 'Gruppen må ligge i «Slettede grupper» før den kan slettes for godt.';
+  end if;
+  delete from public.members where group_id = p_group;
+  delete from public.groups where id = p_group;
+end;
+$$;
+
 create or replace function public.delete_expired_invites()
 returns int
 language plpgsql security definer set search_path = public
@@ -1129,6 +1177,7 @@ grant execute on function public.save_triad(uuid, text, uuid[])                t
 grant execute on function public.admin_overview()                              to authenticated;
 grant execute on function public.data_health()                                 to authenticated;
 grant execute on function public.delete_expired_invites()                      to authenticated;
+grant execute on function public.purge_group(uuid)                             to authenticated;
 
 
 -- =====================================================================
@@ -1292,6 +1341,8 @@ begin
   end loop;
 end $$;
 create unique index if not exists group_leaders_one_leder on public.group_leaders(group_id) where role = 'leder';
+
+update public.groups set deleted_at = now() where not active and deleted_at is null;
 
 select public.refresh_group_name(id) from public.groups;
 

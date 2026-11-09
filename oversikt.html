@@ -316,9 +316,10 @@
         <div class="stats compact" id="ov-stats"></div>
         <div id="ov-health"></div>
         <ul class="glist" id="ov-groups"></ul>
-        <details class="card plain fold" id="ov-inactive-box">
-          <summary>Inaktive grupper <span class="count" id="ov-inactive-count"></span></summary>
-          <ul class="glist" id="ov-inactive"></ul>
+        <details class="card plain fold" id="ov-deleted-box" hidden>
+          <summary>Slettede grupper <span class="count" id="ov-deleted-count"></span></summary>
+          <p class="hint">Gruppene her er skjult overalt. Gjenopprett en gruppe for å få den tilbake med deltakere og samlinger.</p>
+          <ul class="plist" id="ov-deleted"></ul>
         </details>
       </div>
 
@@ -434,10 +435,6 @@
       <div class="field">
         <label for="dlg-group-desc">Beskrivelse</label>
         <input type="text" id="dlg-group-desc" maxlength="300" placeholder="f.eks. Tirsdager kl. 19 på Nesttun">
-      </div>
-      <div class="field check">
-        <input type="checkbox" id="dlg-group-active">
-        <label for="dlg-group-active">Aktiv (vises i påmeldingsskjemaet)</label>
       </div>
       <div class="actions">
         <button type="submit" value="save">Lagre</button>

@@ -16,7 +16,9 @@ const state = {
   session: null,
   me: null,
   isAdmin: false,
-  allGroups: [],     // alle grupper jeg kan se navnet på
+  allGroups: [],     // alle grupper jeg kan se navnet på (ikke slettede)
+  deletedGroups: [], // slettede grupper (arkiv, bare admin)
+  deletedCounts: new Map(),
   groups: [],        // gruppene jeg har tilgang til
   leaders: [],       // group_leaders med profil (egne grupper + triade)
   members: [],
@@ -300,7 +302,7 @@ async function loadAll() {
   await q(supabase.rpc('ensure_weekly_meetings'));
   const [me, groups, leaders, members, invites, triads, triadMembers] = await Promise.all([
     q(supabase.from('profiles').select('id, email, full_name, role, phone, reminder_added_at').eq('id', uid).maybeSingle()),
-    q(supabase.from('groups').select('id, name, description, active, created_at').order('name')),
+    q(supabase.from('groups').select('id, name, description, active, created_at, deleted_at').order('name')),
     q(supabase.from('group_leaders').select('group_id, user_id, role, member_id, profiles(full_name, email, phone)')),
     q(supabase.from('members').select('id, member_no, group_id, full_name, birth_year, gender, postal_code, city, archived_at, created_at').order('full_name')),
     q(supabase.from('group_invites').select('code, group_id, role, name, email, phone, member_id, expires_at, used_at').order('created_at')),
@@ -309,13 +311,19 @@ async function loadAll() {
   ]);
   state.me = me;
   state.isAdmin = me?.role === 'admin';
-  state.leaders = leaders || [];
-  state.members = members || [];
-  state.allGroups = groups || [];
+  // Slettede grupper ligger i et eget arkiv og er ellers borte overalt (lister, tilgang, eksport)
+  state.deletedGroups = (groups || []).filter((g) => !g.active)
+    .sort((a, b) => (b.deleted_at || '').localeCompare(a.deleted_at || ''));
+  const gone = new Set(state.deletedGroups.map((g) => g.id));
+  state.deletedCounts = new Map(state.deletedGroups.map((g) =>
+    [g.id, (members || []).filter((m) => m.group_id === g.id && !m.archived_at).length]));
+  state.leaders = (leaders || []).filter((l) => !gone.has(l.group_id));
+  state.members = (members || []).filter((m) => !gone.has(m.group_id));
+  state.allGroups = (groups || []).filter((g) => g.active);
   state.triads = triads || [];
   state.triadMembers = triadMembers || [];
   const now = new Date();
-  state.invites = (invites || []).filter((i) => !i.used_at && new Date(i.expires_at) > now);
+  state.invites = (invites || []).filter((i) => !i.used_at && new Date(i.expires_at) > now && !gone.has(i.group_id));
 
   if (state.isAdmin) {
     state.groups = state.allGroups;
@@ -473,13 +481,11 @@ function renderGroupView() {
   const meta = $('g-meta');
   meta.textContent = '';
   if (g.description) meta.append(g.description);
-  if (!g.active) meta.append(' ', el('span', { class: 'pill grey' }, 'Inaktiv'));
   renderLeaderCard(g);
 
   const active = activeIn(g.id);
   $('g-count').textContent = active.length;
   renderWeekCard(active);
-  $('btn-delete-group').hidden = state.members.some((m) => m.group_id === g.id);
 
   renderSplitHint(g, active.length);
   renderParticipants(active);
@@ -1077,12 +1083,10 @@ $('btn-edit-group').addEventListener('click', () => {
   const g = groupById(state.current);
   const dlg = $('dlg-group');
   $('dlg-group-desc').value = g.description || '';
-  $('dlg-group-active').checked = g.active;
   dlg.onclose = async () => {
     if (dlg.returnValue !== 'save') return;
     const { error } = await supabase.from('groups').update({
       description: $('dlg-group-desc').value.trim() || null,
-      active: $('dlg-group-active').checked,
     }).eq('id', g.id);
     if (error) return toast(friendlyError(error), 'error');
     toast('Gruppen er oppdatert.');
@@ -1094,14 +1098,33 @@ $('btn-edit-group').addEventListener('click', () => {
 $('btn-invite-leader').addEventListener('click', () => inviteLeader(groupById(state.current)));
 $('btn-delete-group').addEventListener('click', async () => {
   const g = groupById(state.current);
-  if (!(await ask(`Slette gruppen til ${g.name}? Den har ingen deltakere.`, 'Slett', true))) return;
-  const { error } = await supabase.from('groups').delete().eq('id', g.id);
+  const title = groupTitle(g.id);
+  if (!(await ask(`Slette ${title}? Gruppen flyttes til «Slettede grupper» nederst på Oversikt, der du kan gjenopprette den. ` +
+    'Lederne mister tilgangen, påmeldingslenken slutter å virke, og gruppen er ikke med i lister eller eksport.', 'Slett gruppe', true))) return;
+  const { error } = await supabase.from('groups').update({ active: false }).eq('id', g.id);
   if (error) return toast(friendlyError(error), 'error');
-  toast('Gruppen er slettet.');
+  toast(`${title} er flyttet til «Slettede grupper».`);
   state.current = null;
   await reload();
   setTab('overview');
 });
+
+async function restoreGroup(g) {
+  const { error } = await supabase.from('groups').update({ active: true }).eq('id', g.id);
+  if (error) return toast(friendlyError(error), 'error');
+  toast(`${g.name} er gjenopprettet.`);
+  await reload();
+}
+
+async function purgeGroup(g) {
+  const n = state.deletedCounts.get(g.id) || 0;
+  if (!(await ask(`Slette ${g.name} for godt? ${n ? `${n} ${n === 1 ? 'deltaker' : 'deltakere'}, ` : ''}samlinger og oppmøte slettes også. Dette kan ikke angres.`,
+    'Slett for godt', true))) return;
+  const { error } = await supabase.rpc('purge_group', { p_group: g.id });
+  if (error) return toast(friendlyError(error), 'error');
+  toast(`${g.name} er slettet for godt.`);
+  await reload();
+}
 $('btn-export-group').addEventListener('click', () => downloadCsv(activeIn(state.current), groupName(state.current)));
 
 // =====================================================================
@@ -1461,8 +1484,7 @@ function groupCard(g) {
 }
 
 function renderOverview() {
-  const active = state.groups.filter((g) => g.active);
-  const inactive = state.groups.filter((g) => !g.active);
+  const active = state.groups;
   const members = state.members.filter((m) => !m.archived_at).length;
   const missing = active.filter((g) => !hasDeputy(g.id)).length;
   const stats = $('ov-stats');
@@ -1477,10 +1499,21 @@ function renderOverview() {
 
   renderHealth();
 
-  $('ov-inactive-box').hidden = inactive.length === 0;
-  $('ov-inactive-count').textContent = inactive.length;
-  $('ov-inactive').innerHTML = '';
-  for (const g of inactive) $('ov-inactive').append(groupCard(g));
+  // Slettede grupper (arkiv): gjenopprett eller slett for godt
+  const deleted = state.deletedGroups || [];
+  $('ov-deleted-box').hidden = deleted.length === 0;
+  $('ov-deleted-count').textContent = deleted.length;
+  $('ov-deleted').replaceChildren(...deleted.map((g) => {
+    const n = state.deletedCounts.get(g.id) || 0;
+    return el('li', { class: 'drow' },
+      el('span', { class: 'pmain' },
+        el('span', { class: 'pname' }, g.name),
+        el('span', { class: 'psub' }, [g.deleted_at ? `Slettet ${shortDate(g.deleted_at.slice(0, 10))}` : null,
+          `${n} ${n === 1 ? 'deltaker' : 'deltakere'}`].filter(Boolean).join(' · '))),
+      el('span', { class: 'drow-actions' },
+        el('button', { class: 'secondary small', onclick: () => restoreGroup(g) }, 'Gjenopprett'),
+        el('button', { class: 'ghost small danger-text', onclick: () => purgeGroup(g) }, 'Slett for godt')));
+  }));
 }
 
 function renderHealth() {
@@ -2227,7 +2260,7 @@ $('btn-logout').addEventListener('click', async () => {
   document.querySelectorAll('dialog[open]').forEach((d) => d.close());
   await supabase.auth.signOut();
   Object.assign(state, {
-    me: null, isAdmin: false, groups: [], allGroups: [], leaders: [], members: [], invites: [], profiles: [],
+    me: null, isAdmin: false, groups: [], allGroups: [], deletedGroups: [], deletedCounts: new Map(), leaders: [], members: [], invites: [], profiles: [],
     triads: [], triadMembers: [], overview: new Map(), health: null, current: null, meetings: [], filterGroup: '', filterRole: '', search: '',
     view: 'home', tab: null,
   });

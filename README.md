@@ -138,7 +138,7 @@ Administratorer har fem faner (den femte er **Håndbok**, samme som lederne har)
   med. Deltakere som har sluttet, men var med i perioden, kommer også med.
   Under knappene: alle grupper som kort («Ingrid Berge sin smågruppe»), med nestleder, antall deltakere og når gruppen sist samlet seg.
   Grupper uten nestleder har en liten gul prikk. Trykk på en gruppe for å se den slik lederen ser
-  den. Nederst i gruppen kan du endre beskrivelse, invitere leder eller slette en tom gruppe.
+  den. Nederst i gruppen kan du endre beskrivelse, invitere leder eller slette gruppen.
   Med **+ Ny gruppe** velger du en leder som har konto, eller inviterer en ny.
 - **Deltakere:** Alle i gruppene: ledere, nestledere og deltakere. Velg **Alle / Ledere /
   Nestledere / Deltakere** for å se bare én rolle, og filtrer på gruppe eller søk. Trykk på en
@@ -158,7 +158,13 @@ Administratorer har fem faner (den femte er **Håndbok**, samme som lederne har)
   Åpner noen en invitasjonslenke mens en annen bruker er logget inn på samme maskin, kan de trykke
   **Logg inn med en annen bruker**. Invitasjonen blir liggende.
 
-**Legge ned en gruppe:** Åpne gruppen → **Endre beskrivelse** → fjern haken for «Aktiv».
+**Slette en gruppe som ikke finnes lenger:** Åpne gruppen og trykk **Slett gruppe** nederst. Gruppen
+flyttes til **Slettede grupper** nederst på Oversikt. Der er den skjult overalt: lederne mister
+tilgangen, påmeldingslenken slutter å virke, ubrukte invitasjoner avbrytes, og gruppen er ikke med i
+lister, statistikk eller eksport. Deltakere og samlinger blir liggende. Fra **Slettede grupper** kan du:
+
+- **Gjenopprette** gruppen. Da kommer den tilbake med deltakere, samlinger og ledere.
+- **Slette for godt.** Da slettes gruppen med deltakere, samlinger og oppmøte, og det kan ikke angres.
 
 ### For ledere og nestledere
 
@@ -299,7 +305,7 @@ Tilgangsreglene er testet mot Postgres med egne brukere for hver rolle. Testene 
 - Besøkende kan bare slå opp postnumre og bruke de fire offentlige funksjonene. Alle tabeller har
   radtilgang (RLS), og alle funksjoner har fast søkesti.
 
-Det er 192 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
+Det er 208 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
 konto, leder, nestleder, leder i annen gruppe og administrator) prøver alt den ikke skal få lov
 til. Oppgradering fra tidligere versjoner er testet uten at data går tapt. Hele flyten er også testet i
 nettleseren på mobil og PC: påmelding, oppmøte, arkivering, nestleder, multiplisering, triader og
