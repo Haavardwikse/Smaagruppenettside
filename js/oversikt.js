@@ -1089,11 +1089,16 @@ function renderWeekCard(active) {
   $('week-sub').textContent = `${timeRange(src)} · ${src?.mode || 'Fysisk'}`;
   const status = $('week-status');
   status.className = 'week-status' + (done ? ' done' : '');
-  status.textContent = future ? '' : done ? `${mt.attendance.length} av ${active.length} til stede` : 'Ikke registrert';
+  const empty = active.length === 0;
+  status.textContent = future ? '' : done ? `${mt.attendance.length} av ${active.length} til stede`
+    : empty ? 'Ingen deltakere ennå' : 'Ikke registrert';
   const btn = $('btn-attend');
-  btn.disabled = future || active.length === 0;
+  btn.disabled = future || empty;
   btn.classList.toggle('secondary', done);
-  btn.lastChild.textContent = future ? ' Kan registreres fra onsdag' : done ? ' Endre oppmøte' : ' Registrer oppmøte';
+  btn.lastChild.textContent = future ? ' Kan registreres fra onsdag' : done ? ' Endre oppmøte'
+    : empty ? ' Legg til deltakere først' : ' Registrer oppmøte';
+  // Uten deltakere er det ingen å krysse av: forklar hvordan de kommer inn
+  $('week-empty').hidden = !empty || future;
   // Rett under: velg en tidligere samling (de siste ukene, nyeste først)
   const past = state.meetings.filter((x) => x.meeting_date < wed && x.meeting_date <= today() &&
     (isWednesday(x.meeting_date) || hasAttendance(x)))
@@ -2099,10 +2104,17 @@ function editAccess(p) {
     leaderOpt.disabled = !!gSel.value && !isNew && leadersOf(gSel.value).some((l) => l.role === 'leder');
     if (leaderOpt.disabled && rSel.value === 'leder') rSel.value = 'nestleder';
   });
+  // Kontaktinfo øverst, så den er lett å finne og trykke på
+  const missing = el('span', { class: 'muted' }, 'Ikke lagt inn ennå');
+  const roles = accountRoles(p);
+  const facts = el('dl', { class: 'facts' },
+    el('dt', {}, 'Rolle'), el('dd', {}, roles.length ? rolePills(roles) : el('span', { class: 'muted' }, 'Ingen tilgang ennå')),
+    el('dt', {}, 'E-post'), el('dd', {}, p.email ? el('a', { href: `mailto:${p.email}` }, p.email) : missing.cloneNode(true)),
+    el('dt', {}, 'Telefon'), el('dd', {}, p.phone ? el('a', { href: `tel:${p.phone}` }, fmtPhone(p.phone)) : missing.cloneNode(true)));
   const dlg = openDialog(
-    el('h2', {}, personName(p)),
-    el('p', { class: 'hint', style: 'margin:-4px 0 14px' }, [p.email, fmtPhone(p.phone)].filter(Boolean).join(' · ')),
-    el('div', { class: 'field' }, el('label', { for: 'acc-role' }, 'Rolle'), roleSel,
+    el('h2', {}, personName(p), isMe ? el('span', { class: 'psub inline' }, ' (deg)') : null),
+    facts,
+    el('div', { class: 'field' }, el('label', { for: 'acc-role' }, 'Endre tilgang'), roleSel,
       isMe ? el('div', { class: 'hint' }, 'Du kan ikke endre din egen rolle.') : null),
     el('div', { class: 'field' }, el('span', { class: 'label' }, 'Grupper'),
       assignments.length

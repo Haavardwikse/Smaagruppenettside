@@ -153,7 +153,8 @@ Administratorer har fem faner (den femte er **Håndbok**, samme som lederne har)
   med en gang. Under **Venter på å godta** ser du invitasjoner som ikke er brukt ennå. Der kan du
   sende lenken på nytt eller avbryte den. Under **Har tilgang** står alle som har konto, delt i
   Administratorer, Ledere, Nestledere og Uten gruppe, med et rollemerke og hvilken gruppe de leder
-  («Nestleder i Ruben Gustavsen sin smågruppe»). Trykk på en person for å endre rolle eller grupper.
+  («Nestleder i Ruben Gustavsen sin smågruppe»). Trykk på en person for å se rolle, e-post og
+  telefon (trykk for å ringe eller sende e-post), og for å endre rolle eller grupper.
   Der kan du gjøre noen til nestleder i en gruppe, til leder for en gruppe som mangler leder, eller
   velge **Ny smågruppe med hen som leder**.
   Åpner noen en invitasjonslenke mens en annen bruker er logget inn på samme maskin, kan de trykke
@@ -182,7 +183,8 @@ På **Gruppen** ser lederen:
   kryss av dem som var der og lagre. Kortet viser forrige onsdag helt til neste samling starter
   onsdag kl. 19, så lederen kan trykke rett inn på den hele uka etterpå. Tid, timer, Fysisk/Digitalt og dato kan endres under **Endre**.
   Rett under kan lederen velge en **tidligere samling** og trykke **Registrer**. Den nyeste som
-  mangler oppmøte er valgt på forhånd.
+  mangler oppmøte er valgt på forhånd. Har gruppen ingen deltakere ennå, er knappen grå, og kortet
+  forklarer hvordan deltakerne kommer inn (påmeldingslenken under **+ Legg til**).
   Under knappen står **Legg inn påminnelse i kalenderen** til lederen har gjort det én gang.
 - **Tidligere samlinger:** Når en ny uke starter, flyttes forrige samling hit. Samlinger uten
   oppmøte står som «Ikke registrert» og kan fortsatt åpnes og registreres. **Fjern oppmøtet** gjør
