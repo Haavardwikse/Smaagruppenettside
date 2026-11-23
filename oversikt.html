@@ -70,6 +70,11 @@
               <label for="invite-name">Navnet ditt</label>
               <input type="text" id="invite-name" autocomplete="name" maxlength="100">
             </div>
+            <div class="field" id="invite-phone-field">
+              <label for="invite-phone">Telefon</label>
+              <input type="tel" id="invite-phone" autocomplete="tel" inputmode="tel" maxlength="20">
+              <div class="hint">Så de andre lederne kan nå deg.</div>
+            </div>
             <div class="field">
               <label for="invite-email">E-post</label>
               <input type="email" id="invite-email" autocomplete="username" required>
@@ -256,6 +261,7 @@
                   <input type="tel" id="split-invite-phone" inputmode="tel" maxlength="20" autocomplete="off">
                 </div>
               </div>
+              <p class="hint">Skriv e-post eller telefon, eller begge. Det som mangler, legger lederen inn selv.</p>
               <p class="hint">Du får en lenke å sende til den nye lederen. Lenken gir tilgang til den nye gruppen.</p>
             </div>
             <button class="block" id="split-next">Neste: fordel deltakerne</button>

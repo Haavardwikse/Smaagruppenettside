@@ -1,6 +1,6 @@
 -- =====================================================================
 --  Smågrupper – Bergen Frikirke · databaseoppsett for Supabase
---  Versjon 10
+--  Versjon 11
 --
 --  Kjør hele filen i Supabase: SQL Editor → New query → Run.
 --  Kjør deretter postnummer.sql på samme måte (postnummerregisteret).
@@ -547,6 +547,8 @@ alter table public.group_invites drop constraint if exists group_invites_phone_o
 alter table public.group_invites add constraint group_invites_phone_ok check (phone ~ '^\+[0-9]{8,15}$');
 alter table public.group_invites drop constraint if exists group_invites_email_ok;
 alter table public.group_invites add constraint group_invites_email_ok check (email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$');
+alter table public.group_invites drop constraint if exists group_invites_contact_ok;
+alter table public.group_invites add constraint group_invites_contact_ok check (email is not null or phone is not null);
 
 alter table public.groups drop constraint if exists groups_description_trim;
 alter table public.meetings drop constraint if exists meetings_date_ok;
@@ -574,7 +576,7 @@ end $$;
 create or replace function public.schema_version()
 returns int
 language sql immutable set search_path = public
-as $$ select 10; $$;
+as $$ select 11; $$;
 
 -- Offentlig: navnet på én gruppe (fra påmeldingslenken). Gruppelisten er ikke offentlig.
 drop function if exists public.group_public_info(uuid);
@@ -749,16 +751,20 @@ begin
   if public.norm_name(p_name) is null or char_length(public.norm_name(p_name)) < 2 then
     raise exception 'Skriv navnet på personen.';
   end if;
-  if public.norm_email(p_email) is null or public.norm_email(p_email) !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then
+  -- E-post eller telefon (minst én). Det som mangler, legger personen inn selv når hen lager konto.
+  if public.norm_email(p_email) is null and public.norm_phone(p_phone) is null then
+    raise exception 'Skriv inn e-post eller telefonnummer.';
+  end if;
+  if public.norm_email(p_email) is not null and public.norm_email(p_email) !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then
     raise exception 'Skriv inn en gyldig e-postadresse.';
   end if;
-  if public.norm_phone(p_phone) is null or public.norm_phone(p_phone) !~ '^\+[0-9]{8,15}$' then
+  if public.norm_phone(p_phone) is not null and public.norm_phone(p_phone) !~ '^\+[0-9]{8,15}$' then
     raise exception 'Skriv inn et gyldig telefonnummer.';
   end if;
 end;
 $$;
 
--- Lag invitasjon til leder eller nestleder. E-post og telefon er påkrevd.
+-- Lag invitasjon til leder eller nestleder. E-post eller telefon er påkrevd.
 -- En ny invitasjon til samme e-post i samme gruppe erstatter den gamle.
 drop function if exists public.create_invite(uuid, text, text);
 create or replace function public.create_invite(
@@ -793,11 +799,13 @@ begin
   if p_role = 'leder' and (
        exists (select 1 from public.group_leaders where group_id = p_group and role = 'leder')
     or exists (select 1 from public.group_invites where group_id = p_group and role = 'leder' and used_at is null
-               and email is distinct from public.norm_email(p_email))) then
+               and not coalesce(email = public.norm_email(p_email), false)
+               and not coalesce(phone = public.norm_phone(p_phone), false))) then
     raise exception 'Gruppen har allerede en leder. En ny leder får sin egen smågruppe.';
   end if;
   delete from public.group_invites
-  where group_id = p_group and used_at is null and email = public.norm_email(p_email);
+  where group_id = p_group and used_at is null
+    and (email = public.norm_email(p_email) or phone = public.norm_phone(p_phone));
   insert into public.group_invites (code, group_id, role, name, email, phone, member_id, created_by)
   values (v_code, p_group, p_role, p_name, p_email, p_phone, p_member_id, auth.uid());
   return v_code;
@@ -807,15 +815,15 @@ $$;
 -- Vis hva en invitasjon gjelder (før innlogging)
 drop function if exists public.invite_info(text);
 create or replace function public.invite_info(p_code text)
-returns table (group_name text, role text, name text, email text)
+returns table (group_name text, role text, name text, email text, has_phone boolean)
 language sql stable security definer set search_path = public
 as $$
-  select g.name, i.role, i.name, i.email
+  select g.name, i.role, i.name, i.email, i.phone is not null
   from public.group_invites i left join public.groups g on g.id = i.group_id
   where i.code = p_code and i.used_at is null and i.expires_at > now();
 $$;
 
--- Inviter en ny administrator (bare admin). Navn og e-post er påkrevd, telefon valgfritt.
+-- Inviter en ny administrator (bare admin). Navn og e-post eller telefon er påkrevd.
 create or replace function public.create_admin_invite(p_name text, p_email text, p_phone text default null)
 returns text
 language plpgsql security definer set search_path = public
@@ -827,19 +835,13 @@ begin
   if not public.is_admin() then
     raise exception 'Bare administratorer kan invitere administratorer';
   end if;
-  if public.norm_name(p_name) is null or char_length(public.norm_name(p_name)) < 2 then
-    raise exception 'Skriv navnet på personen.';
-  end if;
-  if v_email is null or v_email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then
-    raise exception 'Skriv inn en gyldig e-postadresse.';
-  end if;
-  if public.norm_phone(p_phone) is not null and public.norm_phone(p_phone) !~ '^\+[0-9]{8,15}$' then
-    raise exception 'Skriv inn et gyldig telefonnummer.';
-  end if;
-  if exists (select 1 from public.profiles where email = v_email and role = 'admin') then
+  perform public.check_invitee(p_name, p_email, p_phone);
+  if exists (select 1 from public.profiles where role = 'admin'
+             and (email = v_email or phone = public.norm_phone(p_phone))) then
     raise exception 'Personen er allerede administrator.';
   end if;
-  delete from public.group_invites where role = 'admin' and used_at is null and email = v_email;
+  delete from public.group_invites where role = 'admin' and used_at is null
+    and (email = v_email or phone = public.norm_phone(p_phone));
   insert into public.group_invites (code, group_id, role, name, email, phone, created_by)
   values (v_code, null, 'admin', p_name, p_email, p_phone, auth.uid());
   return v_code;
@@ -847,7 +849,8 @@ end;
 $$;
 
 -- Godta invitasjon. Kontoen må ha samme e-post som invitasjonen.
-create or replace function public.accept_invite(p_code text)
+drop function if exists public.accept_invite(text);
+create or replace function public.accept_invite(p_code text, p_phone text default null)
 returns uuid
 language plpgsql security definer set search_path = public
 as $$
@@ -864,6 +867,13 @@ begin
     raise exception 'Invitasjonen er ugyldig, utløpt eller allerede brukt';
   end if;
   select email into v_email from public.profiles where id = auth.uid();
+  if public.norm_phone(p_phone) is not null and public.norm_phone(p_phone) !~ '^\+[0-9]{8,15}$' then
+    raise exception 'Skriv inn et gyldig telefonnummer.';
+  end if;
+  -- Telefonnummeret personen selv skriver inn går foran det i invitasjonen
+  if public.norm_phone(p_phone) is not null then
+    update public.profiles set phone = p_phone where id = auth.uid();
+  end if;
   if v.email is not null and v_email is distinct from v.email then
     raise exception 'Invitasjonen gjelder %. Logg inn eller lag konto med den e-posten.', v.email;
   end if;
@@ -1168,7 +1178,7 @@ grant execute on function public.is_triad_group(uuid)                          t
 grant execute on function public.save_attendance(uuid, date, uuid[], time, numeric, text) to authenticated;
 grant execute on function public.ensure_weekly_meetings()                      to authenticated;
 grant execute on function public.create_invite(uuid, text, text, text, text, uuid) to authenticated;
-grant execute on function public.accept_invite(text)                           to authenticated;
+grant execute on function public.accept_invite(text, text)                     to authenticated;
 grant execute on function public.create_admin_invite(text, text, text)         to authenticated;
 grant execute on function public.remove_coleader(uuid, uuid)                   to authenticated;
 grant execute on function public.split_group(uuid, uuid[], uuid, boolean, text, text, text) to authenticated;

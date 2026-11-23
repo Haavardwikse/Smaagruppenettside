@@ -246,7 +246,42 @@ async function route(session) {
   renderAll();
   setTab(state.tab);
   show('app');
-  if (wantAttend) openAttendFromLink();
+  if (!state.me?.phone) askForPhone();
+  else if (wantAttend) openAttendFromLink();
+}
+
+/** Ledere, nestledere og administratorer legger inn telefonnummeret sitt selv. */
+let askingPhone = false;
+function askForPhone() {
+  if (askingPhone) return;
+  askingPhone = true;
+  const input = el('input', { type: 'tel', id: 'ask-phone', inputmode: 'tel', autocomplete: 'tel', maxlength: 20 });
+  const errBox = el('div', { class: 'notice error', hidden: true });
+  const save = el('button', { type: 'submit' }, 'Lagre');
+  const form = el('form', {},
+    el('h2', {}, 'Legg inn telefonnummeret ditt'),
+    el('p', { class: 'hint', style: 'margin:-4px 0 14px' }, 'Så de andre lederne og administratorene kan nå deg. Du kan endre det senere under Min profil.'),
+    el('div', { class: 'field' }, el('label', { for: 'ask-phone' }, 'Telefon'), input),
+    errBox,
+    el('div', { class: 'actions' }, save));
+  const dlg = openDialog(form);
+  dlg.addEventListener('cancel', (e) => e.preventDefault()); // må fylles ut
+  dlg.addEventListener('close', () => { askingPhone = false; });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const ph = normPhone(input.value);
+    if (!validPhone(ph)) { errBox.textContent = 'Skriv inn et gyldig telefonnummer (8 sifre).'; errBox.hidden = false; return input.focus(); }
+    save.disabled = true;
+    const { error } = await supabase.from('profiles').update({ phone: ph }).eq('id', state.me.id);
+    save.disabled = false;
+    if (error) { errBox.textContent = friendlyError(error); errBox.hidden = false; return; }
+    state.me.phone = ph;
+    dlg.close();
+    toast('Takk! Telefonnummeret er lagret.');
+    await reload();
+    if (wantAttend) openAttendFromLink();
+  });
+  input.focus();
 }
 
 /** Fra kalenderpåminnelsen: gå rett til oppmøte for egen gruppe. */
@@ -587,7 +622,7 @@ function shareInvite({ code, name, role, email, phone, groupId }) {
   const first = (name || '').split(' ')[0] || 'personen';
   const link = inviteLink(code);
   const what = role === 'admin' ? `administrator for smågruppene i ${config.ORG_NAME}`
-    : role === 'nestleder' ? `nestleder i smågruppen til ${gname}` : 'leder for en smågruppe';
+    : role === 'nestleder' ? `nestleder i ${gname} sin smågruppe` : 'leder for en smågruppe';
   const roleText = role === 'admin' ? 'administrator' : role;
   const msg = `Hei ${first}! Du er invitert som ${what}. Åpne lenken for å lage konto og få tilgang: ${link}`;
   const input = el('input', { type: 'text', value: link, readonly: true, onfocus: (e) => e.target.select() });
@@ -597,7 +632,7 @@ function shareInvite({ code, name, role, email, phone, groupId }) {
       `Når ${first} åpner lenken, lager hen en konto${email ? ` med ${email}` : ''} og får tilgang som ${roleText}. Lenken kan brukes én gang og varer i 30 dager.`),
     el('div', { class: 'copy-row' }, input, copyButton(link, input)),
     el('div', { class: 'actions', style: 'margin-top:14px' },
-      phone ? el('a', { class: 'btn', href: `sms:${phone}?&body=${encodeURIComponent(msg)}` }, 'Send på SMS') : null,
+      el('a', { class: 'btn', href: `sms:${phone || ''}?&body=${encodeURIComponent(msg)}` }, 'Send på SMS'),
       email ? el('a', {
         class: 'btn secondary',
         href: `mailto:${email}?subject=${encodeURIComponent(role === 'admin' ? 'Invitasjon: administrator for smågruppene' : 'Invitasjon til smågruppe')}&body=${encodeURIComponent(msg)}`,
@@ -616,22 +651,27 @@ function shareInvite({ code, name, role, email, phone, groupId }) {
       el('button', { class: 'secondary', onclick: () => dlg.close() }, 'Lukk')));
 }
 
-/** Felles skjema for e-post og telefon. */
+/** Kontaktinfo i invitasjoner: e-post eller telefon (minst én). Det som mangler, legger personen inn selv. */
+const CONTACT_HINT = 'Skriv e-post eller telefon, eller begge. Det som mangler, legger personen inn selv når hen lager konto.';
+function readContact(emailValue, phoneValue) {
+  const em = emailValue.trim().toLowerCase();
+  const ph = phoneValue.trim() ? normPhone(phoneValue) : '';
+  if (!em && !ph) return { error: 'Skriv inn e-post eller telefonnummer.' };
+  if (em && !validEmail(em)) return { error: 'E-postadressen ser ikke riktig ut.' };
+  if (ph && !validPhone(ph)) return { error: 'Telefonnummeret ser ikke riktig ut (8 sifre).' };
+  return { email: em || null, phone: ph || null };
+}
 function contactFields(prefix) {
   const email = el('input', { type: 'email', id: prefix + '-email', autocomplete: 'off', maxlength: 120 });
   const phone = el('input', { type: 'tel', id: prefix + '-phone', inputmode: 'tel', autocomplete: 'off', maxlength: 20 });
   return {
     email, phone,
-    nodes: el('div', { class: 'row' },
-      el('div', { class: 'field' }, el('label', { for: prefix + '-email' }, 'E-post'), email),
-      el('div', { class: 'field' }, el('label', { for: prefix + '-phone' }, 'Telefon'), phone)),
-    read() {
-      const em = email.value.trim().toLowerCase();
-      const ph = normPhone(phone.value);
-      if (!validEmail(em)) return { error: 'Skriv inn en gyldig e-postadresse.' };
-      if (!validPhone(ph)) return { error: 'Skriv inn et gyldig telefonnummer (8 sifre).' };
-      return { email: em, phone: ph };
-    },
+    nodes: el('div', {},
+      el('div', { class: 'row' },
+        el('div', { class: 'field' }, el('label', { for: prefix + '-email' }, 'E-post'), email),
+        el('div', { class: 'field' }, el('label', { for: prefix + '-phone' }, 'Telefon'), phone)),
+      el('p', { class: 'hint', style: 'margin:-6px 0 12px' }, CONTACT_HINT)),
+    read: () => readContact(email.value, phone.value),
   };
 }
 
@@ -713,20 +753,19 @@ function chooseDeputy(g) {
 async function inviteLeader(g) {
   const v = await formDialog('Inviter leder', [
     { name: 'name', label: 'Navn', required: true },
-    { name: 'email', label: 'E-post', type: 'email', required: true, max: 120 },
-    { name: 'phone', label: 'Telefon', type: 'tel', required: true, max: 20 },
-  ], 'Lag lenke', 'Gruppen får navnet til lederen. E-posten blir lederens innlogging.');
+    { name: 'email', label: 'E-post', type: 'email', max: 120 },
+    { name: 'phone', label: 'Telefon', type: 'tel', max: 20 },
+  ], 'Lag lenke', `Gruppen får navnet til lederen. ${CONTACT_HINT}`);
   if (!v) return;
-  const phone = normPhone(v.phone);
   if (v.name.length < 2) return toast('Skriv inn navnet.', 'error');
-  if (!validEmail(v.email)) return toast('E-postadressen ser ikke riktig ut.', 'error');
-  if (!validPhone(phone)) return toast('Telefonnummeret ser ikke riktig ut.', 'error');
+  const c = readContact(v.email || '', v.phone || '');
+  if (c.error) return toast(c.error, 'error');
   const { data: code, error } = await supabase.rpc('create_invite', {
-    p_group: g.id, p_role: 'leder', p_name: v.name, p_email: v.email.toLowerCase(), p_phone: phone, p_member_id: null,
+    p_group: g.id, p_role: 'leder', p_name: v.name, p_email: c.email, p_phone: c.phone, p_member_id: null,
   });
   if (error) return toast(friendlyError(error), 'error');
   await reload();
-  shareInvite({ code, name: v.name, role: 'leder', email: v.email, phone, groupId: g.id });
+  shareInvite({ code, name: v.name, role: 'leder', email: c.email, phone: c.phone, groupId: g.id });
 }
 
 // ---- Multiplisere: forslag og forklaring ----
@@ -1345,11 +1384,9 @@ $('split-next').addEventListener('click', () => {
   if (s.leader === 'invite') {
     const name = $('split-invite-name').value.trim();
     if (name.length < 2) { $('split-invite-name').focus(); return toast('Skriv navnet på den nye lederen.', 'error'); }
-    const em = $('split-invite-email').value.trim().toLowerCase();
-    const ph = normPhone($('split-invite-phone').value);
-    if (!validEmail(em)) { $('split-invite-email').focus(); return toast('Skriv inn en gyldig e-postadresse.', 'error'); }
-    if (!validPhone(ph)) { $('split-invite-phone').focus(); return toast('Skriv inn et gyldig telefonnummer.', 'error'); }
-    Object.assign(s, { newName: name, email: em, phone: ph });
+    const c = readContact($('split-invite-email').value, $('split-invite-phone').value);
+    if (c.error) { $('split-invite-email').focus(); return toast(c.error, 'error'); }
+    Object.assign(s, { newName: name, email: c.email, phone: c.phone });
   } else {
     s.newName = personName(leadersOf(state.current).find((l) => l.user_id === s.leader)?.profiles);
   }
@@ -1830,7 +1867,7 @@ function renderPending() {
       el('span', { class: 'pmain' },
         el('span', { class: 'pname' }, i.name || i.email || 'Ukjent',
           el('span', { class: 'role-pill pending' }, 'Invitert')),
-        el('span', { class: 'psub' }, [what, i.email].filter(Boolean).join(' · '))),
+        el('span', { class: 'psub' }, [what, i.email || fmtPhone(i.phone)].filter(Boolean).join(' · '))),
       el('span', { class: 'prow-actions' },
         el('button', {
           class: 'ghost small',
@@ -1846,7 +1883,6 @@ function invitePerson() {
   const name = el('input', { type: 'text', id: 'ip-name', maxlength: 100, autocomplete: 'off' });
   const email = el('input', { type: 'email', id: 'ip-email', maxlength: 120, autocomplete: 'off' });
   const phone = el('input', { type: 'tel', id: 'ip-phone', inputmode: 'tel', maxlength: 20, autocomplete: 'off' });
-  const phoneLabel = el('label', { for: 'ip-phone' }, 'Telefon');
   const explain = el('p', { class: 'hint', style: 'margin:-4px 0 14px' });
   const seg = el('div', { class: 'segmented', role: 'tablist' },
     el('button', { type: 'button', role: 'tab', 'data-k': 'leder' }, 'Leder'),
@@ -1854,7 +1890,6 @@ function invitePerson() {
   const setKind = (k) => {
     kind = k;
     seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.k === k)));
-    phoneLabel.textContent = k === 'admin' ? 'Telefon (valgfritt)' : 'Telefon';
     explain.textContent = k === 'admin'
       ? 'En administrator ser alle grupper og deltakere, og kan invitere andre. Det blir ikke laget noen ny gruppe.'
       : 'En ny smågruppeleder får sin egen smågruppe, som får navnet til lederen. Lederen ser bare sin egen gruppe.';
@@ -1868,8 +1903,8 @@ function invitePerson() {
     el('div', { class: 'field' }, el('label', { for: 'ip-name' }, 'Navn'), name),
     el('div', { class: 'row' },
       el('div', { class: 'field' }, el('label', { for: 'ip-email' }, 'E-post'), email),
-      el('div', { class: 'field' }, phoneLabel, phone)),
-    el('p', { class: 'hint' }, 'E-posten blir personens innlogging. Lenken virker bare for denne e-posten, kan brukes én gang og varer i 30 dager.'),
+      el('div', { class: 'field' }, el('label', { for: 'ip-phone' }, 'Telefon'), phone)),
+    el('p', { class: 'hint' }, `${CONTACT_HINT} Lenken kan brukes én gang og varer i 30 dager.`),
     errBox,
     el('div', { class: 'actions' }, save,
       el('button', { type: 'submit', value: 'cancel', class: 'secondary', formnovalidate: true }, 'Avbryt')));
@@ -1881,18 +1916,17 @@ function invitePerson() {
     const fail = (msg) => { errBox.textContent = msg; errBox.hidden = false; };
     errBox.hidden = true;
     const n = name.value.trim();
-    const em = email.value.trim().toLowerCase();
-    const ph = normPhone(phone.value);
     if (n.length < 2) return fail('Skriv navnet på personen.');
-    if (!validEmail(em)) return fail('Skriv inn en gyldig e-postadresse.');
-    if (kind === 'leder' && !validPhone(ph)) return fail('Skriv inn et gyldig telefonnummer (8 sifre).');
-    if (kind === 'admin' && phone.value.trim() && !validPhone(ph)) return fail('Telefonnummeret ser ikke riktig ut.');
+    const c = readContact(email.value, phone.value);
+    if (c.error) return fail(c.error);
+    const em = c.email;
+    const ph = c.phone;
     save.disabled = true;
     let code = null;
     let groupId = null;
     let error = null;
     if (kind === 'admin') {
-      ({ data: code, error } = await supabase.rpc('create_admin_invite', { p_name: n, p_email: em, p_phone: phone.value.trim() ? ph : null }));
+      ({ data: code, error } = await supabase.rpc('create_admin_invite', { p_name: n, p_email: em, p_phone: ph }));
     } else {
       let data;
       ({ data, error } = await supabase.rpc('create_group', {
@@ -1904,7 +1938,7 @@ function invitePerson() {
     if (error) return fail(friendlyError(error));
     dlg.close();
     await reload();
-    shareInvite({ code, name: n, role: kind, email: em, phone: kind === 'admin' && !phone.value.trim() ? null : ph, groupId });
+    shareInvite({ code, name: n, role: kind, email: em, phone: ph, groupId });
   });
   name.focus();
 }
@@ -2140,10 +2174,15 @@ async function showInvite() {
   $('invite-about').textContent = about || '';
   $('invite-about').hidden = !about;
   if (info.name && !$('invite-name').value) $('invite-name').value = info.name;
+  // Invitasjonen har e-post, telefon eller begge. Det som mangler, legger personen inn selv.
   const locked = !!info.email;
   if (locked) $('invite-email').value = info.email;
   $('invite-email').readOnly = locked;
-  $('invite-email-hint').hidden = !locked;
+  $('invite-email-hint').textContent = locked
+    ? 'Invitasjonen gjelder denne e-posten. Den blir innloggingen din.'
+    : 'Skriv e-posten din. Den blir innloggingen din.';
+  $('invite-email-hint').hidden = false;
+  state.inviteHasPhone = !!info.has_phone;
   const loggedIn = !!state.session;
   $('invite-loggedin').hidden = !loggedIn;
   $('invite-loggedout').hidden = loggedIn;
@@ -2162,6 +2201,7 @@ function setInviteMode(mode) {
   document.querySelectorAll('[data-invmode]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.invmode === mode)));
   const isNew = mode === 'new';
   $('invite-name-field').hidden = !isNew;
+  $('invite-phone-field').hidden = !isNew || state.inviteHasPhone;
   $('invite-password-label').textContent = isNew ? 'Velg et passord' : 'Passord';
   $('invite-password-hint').hidden = !isNew;
   $('invite-password').autocomplete = isNew ? 'new-password' : 'current-password';
@@ -2171,8 +2211,8 @@ function setInviteMode(mode) {
 
 document.querySelectorAll('[data-invmode]').forEach((b) => b.addEventListener('click', () => setInviteMode(b.dataset.invmode)));
 
-async function acceptInvite() {
-  const { error } = await supabase.rpc('accept_invite', { p_code: state.inviteCode });
+async function acceptInvite(phone = null) {
+  const { error } = await supabase.rpc('accept_invite', { p_code: state.inviteCode, p_phone: phone });
   if (error) {
     $('invite-error').className = 'notice error';
     $('invite-error').textContent = friendlyError(error);
@@ -2189,7 +2229,7 @@ async function acceptInvite() {
   return true;
 }
 
-$('invite-accept').addEventListener('click', acceptInvite);
+$('invite-accept').addEventListener('click', () => acceptInvite());
 
 // Logg ut den som er logget inn nå, men behold invitasjonen, så en annen kan logge inn
 $('invite-switch').addEventListener('click', async () => {
@@ -2207,11 +2247,17 @@ $('invite-form').addEventListener('submit', async (e) => {
   const email = $('invite-email').value.trim();
   const password = $('invite-password').value;
   const btn = $('invite-submit');
+  let phone = null;
   btn.disabled = true;
   try {
     if (state.inviteMode === 'new') {
       const name = $('invite-name').value.trim();
       if (name.length < 2) throw new Error('Skriv inn navnet ditt.');
+      if (!state.inviteHasPhone) {
+        phone = normPhone($('invite-phone').value);
+        if (!validPhone(phone)) { $('invite-phone').focus(); throw new Error('Skriv inn telefonnummeret ditt (8 sifre).'); }
+      }
+      if (!validEmail(email.toLowerCase())) { $('invite-email').focus(); throw new Error('Skriv inn e-posten din.'); }
       if (password.length < 8) throw new Error('Passordet må ha minst 8 tegn.');
       const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
       if (error) throw error;
@@ -2227,7 +2273,7 @@ $('invite-form').addEventListener('submit', async (e) => {
       if (error) throw error;
       state.session = data.session;
     }
-    await acceptInvite();
+    await acceptInvite(phone);
   } catch (err) {
     errBox.className = 'notice error';
     errBox.textContent = friendlyError(err);
@@ -2305,7 +2351,7 @@ $('dlg-profile-form').addEventListener('submit', async (e) => {
   const pw = $('dlg-profile-pw').value;
   const phone = normPhone($('dlg-profile-phone').value) || null;
   if (name.length < 2) return toast('Skriv inn navnet ditt.', 'error');
-  if (phone && !validPhone(phone)) return toast('Telefonnummeret ser ikke riktig ut.', 'error');
+  if (!validPhone(phone)) return toast('Skriv inn et gyldig telefonnummer (8 sifre).', 'error');
   if (pw && pw.length < 8) return toast('Passordet må ha minst 8 tegn.', 'error');
   if (name !== (state.me?.full_name || '') || phone !== (state.me?.phone || null)) {
     const { error } = await supabase.from('profiles').update({ full_name: name, phone }).eq('id', state.me.id);

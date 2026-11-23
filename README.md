@@ -147,7 +147,8 @@ Administratorer har fem faner (den femte er **Håndbok**, samme som lederne har)
 - **Triader:** Sett sammen triader med **+ Ny triade**, med to eller tre ledere. Bare ledere kan
   være i en triade, ikke nestledere. Nederst står hvilke ledere som ikke er i en triade ennå.
 - **Tilgang:** Her gir du nye folk tilgang. Trykk **+ Inviter**, velg **Leder** (får en ny
-  smågruppe) eller **Administrator**, og fyll inn navn og e-post (og telefon for ledere).
+  smågruppe) eller **Administrator**, og fyll inn navn og e-post eller telefon (eller begge).
+  Det som mangler, legger personen inn selv når hen lager konto.
   Du får en lenke du sender på SMS eller e-post. Personen åpner lenken, lager konto og har tilgang
   med en gang. Under **Venter på å godta** ser du invitasjoner som ikke er brukt ennå. Der kan du
   sende lenken på nytt eller avbryte den. Under **Har tilgang** står alle som har konto, delt i
@@ -210,7 +211,7 @@ nye ledere og nestledere. Teksten ligger i `js/handbok.js` og er lett å endre.
 ### Velge nestleder
 
 1. Trykk **Velg nestleder** i gruppen.
-2. Velg en person fra deltakerlisten, og skriv inn e-post og telefonnummer. Det er det vanligste.
+2. Velg en person fra deltakerlisten, og skriv inn e-post eller telefonnummer. Det er det vanligste.
    Er nestlederen ikke med i gruppen i dag, trykker du **Er ikke nestlederen med i gruppen i dag?**
    og skriver inn navnet i stedet. Nestlederen kommer da ikke på deltakerlisten.
 3. Du får en ferdig skrevet invitasjon med knappene **Send på SMS** og **Send på e-post**.
@@ -224,7 +225,7 @@ lenken **Hvorfor multiplisere?**. Den forklarer kort hvorfor dette er viktig for
 Forklaringen ligger også nederst på gruppesiden. «Ikke nå» skjuler forslaget til gruppen vokser
 igjen. Vi ønsker at lederne multipliserer i dialog med lederne for smågruppearbeidet.
 
-1. **Ny leder:** Velg nestlederen, eller **en ny leder** (navn, e-post og telefon).
+1. **Ny leder:** Velg nestlederen, eller **en ny leder** (navn, og e-post eller telefon).
 2. **Fordel:** Trykk på en person for å flytte vedkommende. «Foreslå fordeling etter bosted»
    deler etter postnummer.
 3. **Ferdig:** Den nye gruppen får navnet til den nye lederen. En ny leder får en invitasjon på
@@ -238,8 +239,11 @@ Reglene ligger i selve databasen, så de gjelder uansett hvordan data kommer inn
 
 - **Deltaker-ID:** Hver deltaker får et fast nummer (#1, #2 …) som aldri gjenbrukes. Det vises i
   deltakerdetaljene og i nedlastede lister, og du kan søke på det.
-- **Unik e-post for ledere:** E-posten er lederens innlogging og ID. En invitasjon gjelder én
-  bestemt e-post, og den kan bare godtas av en konto med samme e-post.
+- **Unik e-post for ledere:** E-posten er lederens innlogging og ID. Har invitasjonen e-post, kan
+  den bare godtas av en konto med samme e-post. Har den bare telefon, velger personen e-posten selv.
+- **Telefon og e-post på alle med tilgang:** Den som inviterer, skriver e-post eller telefon (minst
+  én). Det som mangler, fyller personen inn når hen lager konto. Ledere, nestledere og
+  administratorer som logger inn uten telefonnummer, blir bedt om å legge det inn før de går videre.
 - **Ingen dobbeltregistrering:** Samme navn og fødselsår kan ikke stå to ganger i samme gruppe.
   Melder noen seg på igjen, skjer det ingenting.
 - **Påkrevde felt ved påmelding:** fullt navn (fornavn og etternavn), fødselsår (1900 til i år), kjønn (mann/kvinne),
@@ -247,8 +251,8 @@ Reglene ligger i selve databasen, så de gjelder uansett hvordan data kommer inn
 - **Fast format:** Navn ryddes for doble mellomrom og får stor forbokstav hvis alt er skrevet med
   små eller store bokstaver. Sted hentes alltid fra postnummeret. Telefon lagres som +47XXXXXXXX
   og e-post med små bokstaver.
-- **Invitasjoner** krever navn, e-post og telefon. En ny invitasjon til samme e-post erstatter den
-  gamle.
+- **Invitasjoner** krever navn og e-post eller telefon. En ny invitasjon til samme e-post eller
+  telefon erstatter den gamle.
 - **Én leder per gruppe:** Databasen stopper en leder nummer to i samme gruppe. En gruppe kan
   ha flere nestledere. Hadde en gruppe flere ledere fra før, beholder den første lederen gruppen
   med deltakere og samlinger, og de andre får hver sin nye gruppe.
@@ -305,7 +309,7 @@ Tilgangsreglene er testet mot Postgres med egne brukere for hver rolle. Testene 
 - Besøkende kan bare slå opp postnumre og bruke de fire offentlige funksjonene. Alle tabeller har
   radtilgang (RLS), og alle funksjoner har fast søkesti.
 
-Det er 208 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
+Det er 222 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
 konto, leder, nestleder, leder i annen gruppe og administrator) prøver alt den ikke skal få lov
 til. Oppgradering fra tidligere versjoner er testet uten at data går tapt. Hele flyten er også testet i
 nettleseren på mobil og PC: påmelding, oppmøte, arkivering, nestleder, multiplisering, triader og
