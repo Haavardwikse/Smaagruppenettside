@@ -176,10 +176,10 @@ På **Gruppen** ser lederen:
 - **Leder og nestledere** med telefon og e-post. Mangler gruppen nestleder, står det «Ingen
   nestleder ennå» med knappen **Velg nestleder**. Har gruppen nestleder, kan lederen legge til
   flere med **+ Legg til nestleder**.
-- **Denne ukens samling** (øverst): Hver aktiv gruppe får automatisk en samling hver onsdag kl.
+- **Siste samling** (øverst): Hver aktiv gruppe får automatisk en samling hver onsdag kl.
   19–21. Kortet viser datoen tydelig og om oppmøtet er registrert. Trykk **Registrer oppmøte**,
-  kryss av dem som var der og lagre. Mandag og tirsdag står det «Neste samling», og oppmøte kan
-  registreres fra onsdag. Tid, timer, Fysisk/Digitalt og dato kan endres under **Endre**.
+  kryss av dem som var der og lagre. Kortet viser forrige onsdag helt til neste samling starter
+  onsdag kl. 19, så lederen kan trykke rett inn på den hele uka etterpå. Tid, timer, Fysisk/Digitalt og dato kan endres under **Endre**.
   Rett under kan lederen velge en **tidligere samling** og trykke **Registrer**. Den nyeste som
   mangler oppmøte er valgt på forhånd.
   Under knappen står **Legg inn påminnelse i kalenderen** til lederen har gjort det én gang.

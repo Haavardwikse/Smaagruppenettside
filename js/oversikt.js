@@ -69,6 +69,25 @@ function wednesdayOf(day) {
   return dt.toLocaleDateString('sv-SE');
 }
 const isWednesday = (day) => wednesdayOf(day) === day;
+function addDays(day, n) {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(y, m - 1, d + n).toLocaleDateString('sv-SE');
+}
+/**
+ * Samlingen lederen registrerer nå: forrige onsdag helt til neste samling starter (onsdag kl. 19).
+ * Er gruppen så ny at den ikke hadde samling forrige onsdag, vises neste samling.
+ */
+function currentWednesday() {
+  const t = today();
+  let wed = wednesdayOf(t);
+  if (wed > t || (wed === t && new Date().getHours() < 19)) {
+    const prev = addDays(wed, -7);
+    const g = groupById(state.current);
+    const created = g?.created_at ? new Date(g.created_at).toLocaleDateString('sv-SE') : null;
+    if (!created || created <= prev) wed = prev;
+  }
+  return wed;
+}
 /** En samling teller bare når noen er registrert som til stede. */
 const hasAttendance = (mt) => (mt?.attendance || []).length > 0;
 
@@ -1021,12 +1040,12 @@ function timeRange(src) {
 }
 
 function renderWeekCard(active) {
-  const wed = wednesdayOf(today());
+  const wed = currentWednesday();
   const mt = state.meetings.find((x) => x.meeting_date === wed);
   const future = wed > today();
   const done = hasAttendance(mt);
   const src = mt || state.meetings.find(hasAttendance) || null;
-  $('week-label').textContent = future ? 'Neste samling' : 'Denne ukens samling';
+  $('week-label').textContent = future ? 'Neste samling' : wed === today() ? 'Dagens samling' : 'Siste samling';
   $('week-date').textContent = longDate(wed);
   $('week-sub').textContent = `${timeRange(src)} · ${src?.mode || 'Fysisk'}`;
   const status = $('week-status');
@@ -1061,8 +1080,9 @@ $('btn-attend-past').addEventListener('click', () => {
 
 function renderMeetings() {
   // Alle samlinger unntatt ukens (den står i kortet øverst). Tomme samlinger vises som «Ikke registrert».
-  const wed = wednesdayOf(today());
-  const mts = state.meetings.filter((mt) => mt.meeting_date !== wed && (isWednesday(mt.meeting_date) || hasAttendance(mt)));
+  const wed = currentWednesday();
+  const mts = state.meetings.filter((mt) => mt.meeting_date !== wed &&
+    (hasAttendance(mt) || (isWednesday(mt.meeting_date) && mt.meeting_date < wed)));
   $('meetings-box').hidden = mts.length === 0;
   $('meetings-count').textContent = mts.length;
   const list = $('meetings');
@@ -1131,7 +1151,7 @@ $('btn-export-group').addEventListener('click', () => downloadCsv(activeIn(state
 //  OPPMØTE
 // =====================================================================
 
-function openAttend(date = wednesdayOf(today())) {
+function openAttend(date = currentWednesday()) {
   if (date > today()) {
     return toast(`Samlingen er ${longDate(date).toLowerCase()}. Oppmøte kan registreres fra samme dag.`);
   }
@@ -1178,7 +1198,7 @@ function loadAttendForDate() {
   $('attend-title').textContent = longDate(state.attend.date);
   $('attend-existing').textContent = hasAttendance(mt)
     ? 'Oppmøtet er registrert. Du kan endre det.'
-    : state.attend.date === wednesdayOf(today()) ? 'Denne ukens samling' : 'Ikke registrert ennå';
+    : state.attend.date === currentWednesday() ? 'Siste samling' : 'Ikke registrert ennå';
   $('attend-delete').hidden = !hasAttendance(mt);
   renderAttendList();
 }
