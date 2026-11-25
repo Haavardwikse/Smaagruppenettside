@@ -5,7 +5,7 @@ import { config } from '../config.js';
 export { config, createClient };
 
 /** Databaseversjonen nettsiden er laget for (se supabase/schema.sql). */
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 export const isConfigured =
   !config.SUPABASE_URL.includes('DITT-PROSJEKT') && !config.SUPABASE_KEY.startsWith('LIM-INN');
@@ -26,7 +26,7 @@ export function el(tag, attrs = {}, ...children) {
     } else if (value === true) node.setAttribute(key, '');
     else node.setAttribute(key, value);
   }
-  for (const child of children.flat()) {
+  for (const child of children.flat(Infinity)) {
     if (child === null || child === undefined || child === false) continue;
     node.append(child instanceof Node ? child : document.createTextNode(String(child)));
   }

@@ -190,7 +190,16 @@ På **Gruppen** ser lederen:
   oppmøte står som «Ikke registrert» og kan fortsatt åpnes og registreres. **Fjern oppmøtet** gjør
   en samling tom igjen. Tomme samlinger tas ikke med i eksporten eller statistikken.
 - **Deltakerne:** Prikkene viser de siste samlingene, og en fylt prikk betyr til stede.
-  Trykk på en person for å redigere eller arkivere.
+  Trykk på en person for å redigere eller arkivere. Lederen og nestlederne står også her, med
+  et rollemerke, og registreres på samlingene som alle andre.
+
+**Ledere og nestledere på oppmøtelisten.** Første gang en leder eller nestleder logger inn, blir
+hen bedt om fødselsår, kjønn og postnummer (det samme som deltakerne oppgir), med samtykke. Da
+står hen på deltakerlisten og oppmøtelisten i gruppen sin og kommer med i eksporten. Får hen en ny
+gruppe senere, skjer det automatisk. Opplysningene kan endres under **Min profil**, og navnet på
+listen følger navnet i profilen. Ble personen valgt som nestleder fra deltakerlisten, står hen der
+allerede og blir ikke spurt. Ved multiplisering blir ledere og nestledere som blir igjen stående i
+gruppen, og den nye lederen tar med seg raden sin.
 - **+ Legg til** gir en påmeldingslenke som lederen sender til dem som skal være med (SMS,
   e-post eller kopier). De fyller inn opplysningene selv og havner rett i gruppen. Ledere
   legger ikke inn deltakere selv. Det kan bare en administrator gjøre.
@@ -311,7 +320,7 @@ Tilgangsreglene er testet mot Postgres med egne brukere for hver rolle. Testene 
 - Besøkende kan bare slå opp postnumre og bruke de fire offentlige funksjonene. Alle tabeller har
   radtilgang (RLS), og alle funksjoner har fast søkesti.
 
-Det er 222 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
+Det er 243 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
 konto, leder, nestleder, leder i annen gruppe og administrator) prøver alt den ikke skal få lov
 til. Oppgradering fra tidligere versjoner er testet uten at data går tapt. Hele flyten er også testet i
 nettleseren på mobil og PC: påmelding, oppmøte, arkivering, nestleder, multiplisering, triader og

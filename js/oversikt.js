@@ -246,42 +246,108 @@ async function route(session) {
   renderAll();
   setTab(state.tab);
   show('app');
-  if (!state.me?.phone) askForPhone();
-  else if (wantAttend) openAttendFromLink();
+  if (!askForProfile() && wantAttend) openAttendFromLink();
 }
 
-/** Ledere, nestledere og administratorer legger inn telefonnummeret sitt selv. */
-let askingPhone = false;
-function askForPhone() {
-  if (askingPhone) return;
-  askingPhone = true;
+/** Felter for opplysningene som trengs på oppmøtelisten (som deltakerne fyller ut ved påmelding). */
+function detailFields(prefix, me) {
+  const year = el('input', { type: 'text', id: prefix + '-year', inputmode: 'numeric', maxlength: 4, autocomplete: 'bday-year', value: me?.birth_year || '' });
+  const radio = (v, label) => el('label', { class: 'choice-opt' },
+    el('input', { type: 'radio', name: prefix + '-gender', value: v, checked: me?.gender === v }), ' ' + label);
+  const pc = el('input', { type: 'text', id: prefix + '-pc', inputmode: 'numeric', maxlength: 4, autocomplete: 'postal-code', value: me?.postal_code || '' });
+  const city = el('span', { class: 'hint', id: prefix + '-city' });
+  const lookup = async () => {
+    city.textContent = '';
+    if (!/^\d{4}$/.test(pc.value.trim())) return;
+    const { data } = await supabase.from('postal_codes').select('city').eq('code', pc.value.trim()).maybeSingle();
+    city.textContent = data?.city || 'Fant ikke postnummeret';
+  };
+  pc.addEventListener('input', lookup);
+  if (pc.value) lookup();
+  const consent = el('input', { type: 'checkbox', id: prefix + '-consent', checked: !!me?.birth_year });
+  return {
+    nodes: [
+      el('div', { class: 'row' },
+        el('div', { class: 'field' }, el('label', { for: prefix + '-year' }, 'Fødselsår'), year),
+        el('div', { class: 'field' }, el('label', { for: prefix + '-pc' }, 'Postnummer'), pc, city)),
+      el('fieldset', { class: 'field gender-field' }, el('legend', {}, 'Kjønn'),
+        el('div', { class: 'choice-row', role: 'radiogroup' }, radio('mann', 'Mann'), radio('kvinne', 'Kvinne'))),
+      el('div', { class: 'field check' }, consent,
+        el('label', { for: prefix + '-consent' }, `Jeg samtykker til at ${config.ORG_NAME} lagrer opplysningene mine for å organisere smågruppene. `,
+          el('a', { href: 'personvern.html', target: '_blank', rel: 'noopener' }, 'Personvern'))),
+    ],
+    filled: () => !!(year.value.trim() || pc.value.trim() || document.querySelector(`input[name="${prefix}-gender"]:checked`)),
+    read() {
+      const y = Number(year.value.trim());
+      const g = document.querySelector(`input[name="${prefix}-gender"]:checked`)?.value;
+      const now = new Date().getFullYear();
+      if (!(y >= 1900 && y <= now)) return { error: 'Skriv inn fødselsåret ditt (fire siffer).', focus: year };
+      if (!g) return { error: 'Velg kjønn.' };
+      if (!/^\d{4}$/.test(pc.value.trim())) return { error: 'Skriv inn postnummeret ditt (fire siffer).', focus: pc };
+      if (!consent.checked) return { error: 'Kryss av for samtykke.', focus: consent };
+      return { year: y, gender: g, pc: pc.value.trim() };
+    },
+  };
+}
+
+/** Ledere/nestledere som ikke står på deltakerlisten i en av gruppene sine. */
+const missingFromList = () => state.leaders.some((l) => l.user_id === state.me?.id && !l.member_id);
+
+/**
+ * Ved innlogging: be om det som mangler. Telefon (alle med tilgang) og, for ledere og nestledere,
+ * opplysningene til oppmøtelisten. Må fylles ut før man går videre.
+ */
+let askingProfile = false;
+function askForProfile() {
+  const needPhone = !state.me?.phone;
+  const needDetails = missingFromList();
+  if (askingProfile || (!needPhone && !needDetails)) return false;
+  askingProfile = true;
   const input = el('input', { type: 'tel', id: 'ask-phone', inputmode: 'tel', autocomplete: 'tel', maxlength: 20 });
+  const det = needDetails ? detailFields('ask', state.me) : null;
   const errBox = el('div', { class: 'notice error', hidden: true });
   const save = el('button', { type: 'submit' }, 'Lagre');
   const form = el('form', {},
-    el('h2', {}, 'Legg inn telefonnummeret ditt'),
-    el('p', { class: 'hint', style: 'margin:-4px 0 14px' }, 'Så de andre lederne og administratorene kan nå deg. Du kan endre det senere under Min profil.'),
-    el('div', { class: 'field' }, el('label', { for: 'ask-phone' }, 'Telefon'), input),
+    el('h2', {}, needDetails ? 'Fullfør profilen din' : 'Legg inn telefonnummeret ditt'),
+    needPhone ? [
+      el('p', { class: 'hint', style: 'margin:-4px 0 14px' }, 'Så de andre lederne og administratorene kan nå deg.'),
+      el('div', { class: 'field' }, el('label', { for: 'ask-phone' }, 'Telefon'), input),
+    ] : null,
+    needDetails ? [
+      el('h3', { class: 'sub' }, 'Du står også på oppmøtelisten'),
+      el('p', { class: 'hint', style: 'margin:-4px 0 12px' }, 'Ledere og nestledere registreres på samlingene som alle andre. Vi trenger det samme som deltakerne oppgir.'),
+      det.nodes,
+    ] : null,
+    el('p', { class: 'hint' }, 'Du kan endre dette senere under Min profil.'),
     errBox,
     el('div', { class: 'actions' }, save));
   const dlg = openDialog(form);
   dlg.addEventListener('cancel', (e) => e.preventDefault()); // må fylles ut
-  dlg.addEventListener('close', () => { askingPhone = false; });
+  dlg.addEventListener('close', () => { askingProfile = false; });
+  const fail = (msg, focus) => { errBox.textContent = msg; errBox.hidden = false; focus?.focus(); };
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const ph = normPhone(input.value);
-    if (!validPhone(ph)) { errBox.textContent = 'Skriv inn et gyldig telefonnummer (8 sifre).'; errBox.hidden = false; return input.focus(); }
+    if (needPhone && !validPhone(ph)) return fail('Skriv inn et gyldig telefonnummer (8 sifre).', input);
+    const d = det ? det.read() : null;
+    if (d?.error) return fail(d.error, d.focus);
     save.disabled = true;
-    const { error } = await supabase.from('profiles').update({ phone: ph }).eq('id', state.me.id);
-    save.disabled = false;
-    if (error) { errBox.textContent = friendlyError(error); errBox.hidden = false; return; }
-    state.me.phone = ph;
+    if (needPhone) {
+      const { error } = await supabase.from('profiles').update({ phone: ph }).eq('id', state.me.id);
+      if (error) { save.disabled = false; return fail(friendlyError(error)); }
+      state.me.phone = ph;
+    }
+    if (d) {
+      const { error } = await supabase.rpc('save_my_details', { p_birth_year: d.year, p_gender: d.gender, p_postal_code: d.pc, p_consent: true });
+      if (error) { save.disabled = false; return fail(friendlyError(error)); }
+    }
     dlg.close();
-    toast('Takk! Telefonnummeret er lagret.');
+    toast(needDetails ? 'Takk! Du står nå på oppmøtelisten.' : 'Takk! Telefonnummeret er lagret.');
     await reload();
     if (wantAttend) openAttendFromLink();
   });
-  input.focus();
+  (needPhone ? input : form.querySelector('input'))?.focus();
+  return true;
 }
 
 /** Fra kalenderpåminnelsen: gå rett til oppmøte for egen gruppe. */
@@ -355,7 +421,7 @@ async function loadAll() {
   // Sørger for at hver aktive gruppe har en samling hver onsdag (tom til oppmøtet registreres)
   await q(supabase.rpc('ensure_weekly_meetings'));
   const [me, groups, leaders, members, invites, triads, triadMembers] = await Promise.all([
-    q(supabase.from('profiles').select('id, email, full_name, role, phone, reminder_added_at').eq('id', uid).maybeSingle()),
+    q(supabase.from('profiles').select('id, email, full_name, role, phone, reminder_added_at, birth_year, gender, postal_code').eq('id', uid).maybeSingle()),
     q(supabase.from('groups').select('id, name, description, active, created_at, deleted_at').order('name')),
     q(supabase.from('group_leaders').select('group_id, user_id, role, member_id, profiles(full_name, email, phone)')),
     q(supabase.from('members').select('id, member_no, group_id, full_name, birth_year, gender, postal_code, city, archived_at, created_at').order('full_name')),
@@ -1399,9 +1465,16 @@ $('split-next').addEventListener('click', () => {
   splitStep(2);
 });
 
+/** Ledere og nestledere står fast: de som blir igjen, i gruppen; den nye lederen, i den nye. */
+function splitPin(m) {
+  const l = leadersOf(state.current).find((x) => x.member_id === m.id);
+  return l ? { side: l.user_id === state.split.leader ? 'B' : 'A', role: l.user_id === state.split.leader ? 'Ny leder' : roleLabel(l.role) } : null;
+}
+
 function renderSplitList() {
   const g = groupById(state.current);
   const people = activeIn(g.id);
+  for (const m of people) { const pin = splitPin(m); if (pin) state.split.side[m.id] = pin.side; }
   const a = people.filter((m) => state.split.side[m.id] === 'A').length;
   const b = people.length - a;
   $('split-totals').innerHTML = '';
@@ -1412,13 +1485,15 @@ function renderSplitList() {
   list.innerHTML = '';
   for (const m of people) {
     const side = state.split.side[m.id];
+    const pin = splitPin(m);
     list.append(el('li', {},
       el('button', {
-        class: `srow ${side === 'B' ? 'b' : 'a'}`,
+        class: `srow ${side === 'B' ? 'b' : 'a'}${pin ? ' pinned' : ''}`,
+        disabled: !!pin,
         onclick: () => { state.split.side[m.id] = side === 'A' ? 'B' : 'A'; renderSplitList(); },
       },
       el('span', { class: 'pmain' },
-        el('span', { class: 'pname' }, m.full_name),
+        el('span', { class: 'pname' }, m.full_name, pin ? el('span', { class: 'role-pill' }, pin.role) : null),
         el('span', { class: 'psub' }, [m.postal_code, m.city].filter(Boolean).join(' '))),
       el('span', { class: 'sidepill' }, side === 'A' ? g.name : state.split.newName))));
   }
@@ -1426,7 +1501,7 @@ function renderSplitList() {
 }
 
 $('split-by-postcode').addEventListener('click', () => {
-  const people = activeIn(state.current).slice()
+  const people = activeIn(state.current).filter((m) => !splitPin(m))
     .sort((x, y) => (x.postal_code || '9999').localeCompare(y.postal_code || '9999') || x.full_name.localeCompare(y.full_name, 'nb'));
   const half = Math.ceil(people.length / 2);
   people.forEach((m, i) => (state.split.side[m.id] = i < half ? 'A' : 'B'));
@@ -1685,8 +1760,9 @@ function allPeople() {
     kind: 'member', id: m.id, name: m.full_name, role: linked.get(m.id) || 'deltaker', groups: [m.group_id], member: m,
   }));
   const byUser = new Map();
+  const listed = new Set(out.map((e) => e.id));
   for (const l of state.leaders) {
-    if (l.member_id) continue;
+    if (l.member_id && listed.has(l.member_id)) continue; // står allerede på listen som seg selv
     const e = byUser.get(l.user_id) || { kind: 'leader', id: l.user_id, name: personName(l.profiles), role: 'nestleder', groups: [], assignments: [], profile: l.profiles };
     e.groups.push(l.group_id);
     e.assignments.push(l);
@@ -2351,9 +2427,15 @@ $('btn-profile').addEventListener('click', () => {
   $('dlg-profile-name').value = state.me?.full_name || '';
   $('dlg-profile-phone').value = fmtPhone(state.me?.phone || '');
   $('dlg-profile-pw').value = '';
+  // Ledere og nestledere: opplysningene til oppmøtelisten
+  const leads = state.leaders.some((l) => l.user_id === state.me?.id);
+  profileDetails = leads || state.me?.birth_year ? detailFields('prof', state.me) : null;
+  $('dlg-profile-details').replaceChildren(...(profileDetails
+    ? [el('h3', { class: 'sub' }, 'Oppmøtelisten'), ...profileDetails.nodes] : []));
   dlg.returnValue = '';
   dlg.showModal();
 });
+let profileDetails = null;
 
 $('dlg-profile-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -2365,8 +2447,14 @@ $('dlg-profile-form').addEventListener('submit', async (e) => {
   if (name.length < 2) return toast('Skriv inn navnet ditt.', 'error');
   if (!validPhone(phone)) return toast('Skriv inn et gyldig telefonnummer (8 sifre).', 'error');
   if (pw && pw.length < 8) return toast('Passordet må ha minst 8 tegn.', 'error');
+  const d = profileDetails?.filled() ? profileDetails.read() : null;
+  if (d?.error) { d.focus?.focus(); return toast(d.error, 'error'); }
   if (name !== (state.me?.full_name || '') || phone !== (state.me?.phone || null)) {
     const { error } = await supabase.from('profiles').update({ full_name: name, phone }).eq('id', state.me.id);
+    if (error) return toast(friendlyError(error), 'error');
+  }
+  if (d && (d.year !== state.me?.birth_year || d.gender !== state.me?.gender || d.pc !== state.me?.postal_code)) {
+    const { error } = await supabase.rpc('save_my_details', { p_birth_year: d.year, p_gender: d.gender, p_postal_code: d.pc, p_consent: true });
     if (error) return toast(friendlyError(error), 'error');
   }
   if (pw) {

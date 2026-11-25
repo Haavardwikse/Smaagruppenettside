@@ -1,6 +1,6 @@
 -- =====================================================================
 --  Smågrupper – Bergen Frikirke · databaseoppsett for Supabase
---  Versjon 11
+--  Versjon 12
 --
 --  Kjør hele filen i Supabase: SQL Editor → New query → Run.
 --  Kjør deretter postnummer.sql på samme måte (postnummerregisteret).
@@ -95,6 +95,11 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists phone text;
 -- Når lederen la inn kalenderpåminnelsen (da skjules knappen ved «Registrer oppmøte»)
 alter table public.profiles add column if not exists reminder_added_at timestamptz;
+-- Ledere og nestledere står også på oppmøtelisten. Opplysningene de legger inn selv, brukes
+-- til deltakerraden i hver gruppe de leder.
+alter table public.profiles add column if not exists birth_year  int;
+alter table public.profiles add column if not exists gender      text;
+alter table public.profiles add column if not exists postal_code text;
 
 -- Deltakerne. member_no er deltaker-ID-en (et løpenummer som aldri gjenbrukes).
 create table if not exists public.members (
@@ -325,6 +330,24 @@ begin
 end;
 $$;
 
+-- En leders egen rad på deltakerlisten kan ikke flyttes til en annen gruppe mens hen leder denne
+create or replace function public.trg_member_is_leader()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if new.group_id is distinct from old.group_id and exists (
+    select 1 from public.group_leaders where member_id = old.id and group_id = old.group_id) then
+    raise exception 'Personen er leder eller nestleder i gruppen. Endre tilgangen først.';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists member_is_leader on public.members;
+create trigger member_is_leader
+  before update of group_id on public.members
+  for each row execute function public.trg_member_is_leader();
+
 drop trigger if exists leaders_member_group on public.group_leaders;
 create trigger leaders_member_group
   before insert or update of member_id, group_id on public.group_leaders
@@ -468,6 +491,12 @@ as $$
 begin
   perform public.refresh_group_name(gl.group_id)
   from public.group_leaders gl where gl.user_id = new.id and gl.role = 'leder';
+  -- Lederens egen rad på deltakerlisten følger navnet
+  if new.full_name is distinct from old.full_name and public.norm_name(new.full_name) is not null then
+    update public.members m set full_name = new.full_name
+    from public.group_leaders gl
+    where gl.user_id = new.id and gl.member_id = m.id and m.full_name is distinct from public.norm_name(new.full_name);
+  end if;
   return null;
 end;
 $$;
@@ -486,6 +515,91 @@ drop trigger if exists group_name_from_profile on public.profiles;
 create trigger group_name_from_profile
   after update of full_name on public.profiles
   for each row execute function public.trg_profile_name();
+
+-- Sett en leder/nestleder på deltakerlisten i hver aktive gruppe hen leder, med opplysningene
+-- fra profilen. Står personen der fra før (samme navn og fødselsår), kobles den raden i stedet.
+create or replace function public.ensure_leader_members(p_user uuid)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  pr  public.profiles%rowtype;
+  r   record;
+  v_name text;
+  v_mid  uuid;
+begin
+  select * into pr from public.profiles where id = p_user;
+  if not found or pr.birth_year is null or pr.gender is null or pr.postal_code is null then
+    return;
+  end if;
+  v_name := coalesce(public.norm_name(pr.full_name), split_part(pr.email, '@', 1));
+  for r in
+    select gl.group_id from public.group_leaders gl join public.groups g on g.id = gl.group_id
+    where gl.user_id = p_user and gl.member_id is null and g.active
+  loop
+    select id into v_mid from public.members
+    where group_id = r.group_id and archived_at is null
+      and lower(full_name) = lower(v_name) and coalesce(birth_year, 0) = pr.birth_year
+    limit 1;
+    if v_mid is null then
+      insert into public.members (group_id, full_name, birth_year, gender, postal_code, consent)
+      values (r.group_id, v_name, pr.birth_year, pr.gender, pr.postal_code, true)
+      returning id into v_mid;
+    end if;
+    update public.group_leaders set member_id = v_mid where group_id = r.group_id and user_id = p_user;
+  end loop;
+end;
+$$;
+
+create or replace function public.trg_leader_member()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if new.member_id is null then
+    perform public.ensure_leader_members(new.user_id);
+  end if;
+  return null;
+end;
+$$;
+drop trigger if exists leader_on_member_list on public.group_leaders;
+create trigger leader_on_member_list
+  after insert or update of group_id on public.group_leaders
+  for each row execute function public.trg_leader_member();
+
+-- Lederen legger inn egne opplysninger (fødselsår, kjønn, postnummer) med samtykke.
+-- Oppdaterer også egne rader på deltakerlistene, og setter hen på listen der hen mangler.
+create or replace function public.save_my_details(p_birth_year int, p_gender text, p_postal_code text, p_consent boolean)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_gender text := lower(public.norm_space(p_gender));
+  v_pc     text := public.norm_space(p_postal_code);
+begin
+  if auth.uid() is null then
+    raise exception 'Du må være logget inn';
+  end if;
+  if p_consent is not true then
+    raise exception 'Du må samtykke for å stå på oppmøtelisten.';
+  end if;
+  if p_birth_year is null or p_birth_year < 1900 or p_birth_year > extract(year from now())::int then
+    raise exception 'Skriv inn et gyldig fødselsår.';
+  end if;
+  if v_gender is null or v_gender not in ('mann', 'kvinne') then
+    raise exception 'Velg kjønn.';
+  end if;
+  if v_pc is null or not exists (select 1 from public.postal_codes where code = v_pc) then
+    raise exception 'Skriv inn et gyldig postnummer.';
+  end if;
+  update public.profiles set birth_year = p_birth_year, gender = v_gender, postal_code = v_pc
+  where id = auth.uid();
+  update public.members m set birth_year = p_birth_year, gender = v_gender, postal_code = v_pc
+  from public.group_leaders gl
+  where gl.user_id = auth.uid() and gl.member_id = m.id;
+  perform public.ensure_leader_members(auth.uid());
+end;
+$$;
 
 -- Slettet gruppe: noter når, og avbryt invitasjoner som ikke er brukt
 create or replace function public.trg_group_deleted()
@@ -576,7 +690,7 @@ end $$;
 create or replace function public.schema_version()
 returns int
 language sql immutable set search_path = public
-as $$ select 11; $$;
+as $$ select 12; $$;
 
 -- Offentlig: navnet på én gruppe (fra påmeldingslenken). Gruppelisten er ikke offentlig.
 drop function if exists public.group_public_info(uuid);
@@ -950,6 +1064,7 @@ declare
   v_code  text;
   v_moved int;
   v_name  text;
+  v_lmem  uuid;
 begin
   if auth.uid() is null or not (public.is_admin() or public.leads_group(p_source)) then
     raise exception 'Du har ikke tilgang til denne gruppen';
@@ -971,18 +1086,23 @@ begin
 
   insert into public.groups (name) values (left(v_name, 80)) returning id into v_new;
 
+  -- Den nye lederen tar med seg raden sin på deltakerlisten når hen flytter
+  if p_leader_user is not null and p_move_leader then
+    select member_id into v_lmem from public.group_leaders where group_id = p_source and user_id = p_leader_user;
+    delete from public.group_leaders where group_id = p_source and user_id = p_leader_user;
+  end if;
+
+  -- Ledere og nestledere som blir igjen, flyttes ikke
   update public.members set group_id = v_new
-  where group_id = p_source and archived_at is null and id = any(p_member_ids);
+  where group_id = p_source and archived_at is null and (id = any(p_member_ids) or id = v_lmem)
+    and id not in (select member_id from public.group_leaders where group_id = p_source and member_id is not null);
   get diagnostics v_moved = row_count;
   if v_moved = 0 then
     raise exception 'Ingen av de valgte deltakerne kunne flyttes.';
   end if;
 
   if p_leader_user is not null then
-    insert into public.group_leaders (group_id, user_id, role) values (v_new, p_leader_user, 'leder');
-    if p_move_leader then
-      delete from public.group_leaders where group_id = p_source and user_id = p_leader_user;
-    end if;
+    insert into public.group_leaders (group_id, user_id, role, member_id) values (v_new, p_leader_user, 'leder', v_lmem);
   else
     v_code := replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
     insert into public.group_invites (code, group_id, role, name, email, phone, created_by)
@@ -1184,6 +1304,7 @@ grant execute on function public.remove_coleader(uuid, uuid)                   t
 grant execute on function public.split_group(uuid, uuid[], uuid, boolean, text, text, text) to authenticated;
 grant execute on function public.create_group(text, uuid, text, text, text)    to authenticated;
 grant execute on function public.save_triad(uuid, text, uuid[])                to authenticated;
+grant execute on function public.save_my_details(int, text, text, boolean)      to authenticated;
 grant execute on function public.admin_overview()                              to authenticated;
 grant execute on function public.data_health()                                 to authenticated;
 grant execute on function public.delete_expired_invites()                      to authenticated;
