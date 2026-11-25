@@ -192,14 +192,6 @@ På **Gruppen** ser lederen:
 - **Deltakerne:** Prikkene viser de siste samlingene, og en fylt prikk betyr til stede.
   Trykk på en person for å redigere eller arkivere. Lederen og nestlederne står også her, med
   et rollemerke, og registreres på samlingene som alle andre.
-
-**Ledere og nestledere på oppmøtelisten.** Første gang en leder eller nestleder logger inn, blir
-hen bedt om fødselsår, kjønn og postnummer (det samme som deltakerne oppgir), med samtykke. Da
-står hen på deltakerlisten og oppmøtelisten i gruppen sin og kommer med i eksporten. Får hen en ny
-gruppe senere, skjer det automatisk. Opplysningene kan endres under **Min profil**, og navnet på
-listen følger navnet i profilen. Ble personen valgt som nestleder fra deltakerlisten, står hen der
-allerede og blir ikke spurt. Ved multiplisering blir ledere og nestledere som blir igjen stående i
-gruppen, og den nye lederen tar med seg raden sin.
 - **+ Legg til** gir en påmeldingslenke som lederen sender til dem som skal være med (SMS,
   e-post eller kopier). De fyller inn opplysningene selv og havner rett i gruppen. Ledere
   legger ikke inn deltakere selv. Det kan bare en administrator gjøre.
@@ -208,6 +200,14 @@ gruppen, og den nye lederen tar med seg raden sin.
   registrere oppmøte. Det finnes én knapp for iPhone, Mac og Outlook, og én for Google Kalender.
   Lenken i påminnelsen går rett til oppmøtet (`oversikt.html#oppmote`). Google bruker lederens
   vanlige varslingstid, så der må varselet settes til «Når aktiviteten starter».
+
+**Ledere og nestledere på oppmøtelisten.** Første gang en leder eller nestleder logger inn, blir
+hen bedt om fødselsår, kjønn og postnummer (det samme som deltakerne oppgir), med samtykke. Da
+står hen på deltakerlisten og oppmøtelisten i gruppen sin og kommer med i eksporten. Får hen en ny
+gruppe senere, skjer det automatisk. Opplysningene kan endres under **Min profil**, og navnet på
+listen følger navnet i profilen. Ble personen valgt som nestleder fra deltakerlisten, står hen der
+allerede og blir ikke spurt. Ved multiplisering blir ledere og nestledere som blir igjen stående i
+gruppen, og den nye lederen tar med seg raden sin.
 
 Under **Triade** ser lederen hvem hen er i triade med, hvilke grupper de leder, og hvordan de kan
 kontaktes. Siden er laget slik at vi kan legge til mer der senere.
