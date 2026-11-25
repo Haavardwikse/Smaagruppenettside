@@ -455,7 +455,7 @@ as $$
 declare
   v_name text;
 begin
-  select string_agg(coalesce(nullif(p.full_name, ''), split_part(p.email, '@', 1)), ' og ' order by gl.created_at)
+  select string_agg(coalesce(nullif(p.full_name, ''), public.norm_name(split_part(p.email, '@', 1))), ' og ' order by gl.created_at)
   into v_name
   from public.group_leaders gl join public.profiles p on p.id = gl.user_id
   where gl.group_id = p_group and gl.role = 'leder';
@@ -1235,10 +1235,16 @@ begin
           and not exists (select 1 from public.group_invites i where i.group_id = g.id and i.role = 'leder' and i.used_at is null and i.expires_at > now())),
     'members_missing_info', (select count(*) from public.members m
         where m.archived_at is null and (m.birth_year is null or m.gender is null or m.postal_code is null or m.city is null)),
+    -- En leder/nestleder står på lista i hver gruppe hen leder. Rader som hører til samme
+    -- konto er samme person og teller ikke som dobbeltregistrering.
     'possible_duplicates', (select coalesce(json_agg(x order by x), '[]') from (
         select m.full_name || coalesce(' (' || m.birth_year || ')', '') as x
-        from public.members m where m.archived_at is null
-        group by m.full_name, m.birth_year having count(*) > 1) d),
+        from public.members m
+        join public.groups g on g.id = m.group_id and g.active
+        left join lateral (select gl.user_id from public.group_leaders gl where gl.member_id = m.id limit 1) l on true
+        where m.archived_at is null
+        group by m.full_name, m.birth_year
+        having count(distinct coalesce(l.user_id, m.id)) > 1) d),
     'expired_invites', (select count(*) from public.group_invites where used_at is null and expires_at < now()),
     'accounts_without_access', (select count(*) from public.profiles p
         where p.role <> 'admin' and not exists (select 1 from public.group_leaders gl where gl.user_id = p.id)),
