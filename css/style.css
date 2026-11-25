@@ -632,3 +632,7 @@ h3.sub { font-size: .95rem; margin: 18px 0 8px; }
 dialog h3.sub:first-child { margin-top: 4px; }
 .srow.pinned { cursor: default; opacity: .85; }
 .srow.pinned:disabled { color: inherit; }
+
+/* iPhone zoomer inn når et felt under 16 px får fokus. Alle felt er derfor minst 16 px. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+input, select, textarea, .copy-row input { font-size: max(16px, 1rem); }
