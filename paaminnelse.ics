@@ -22,15 +22,15 @@ END:STANDARD
 END:VTIMEZONE
 BEGIN:VEVENT
 UID:oppmote-onsdag-2120@smagrupper.bergenfrikirke.no
-DTSTAMP:20261109T110000Z
+DTSTAMP:20261126T090000Z
 DTSTART;TZID=Europe/Oslo:20261111T212000
 DTEND;TZID=Europe/Oslo:20261111T213000
 RRULE:FREQ=WEEKLY;BYDAY=WE
 SUMMARY:Registrer oppmøte i smågruppen
 DESCRIPTION:Husk å registrere hvem som var med på smågruppen i kveld.\n\
- nTrykk her for å registrere oppmøte:\nhttps://haavardwikse.github.io/Sma
- agruppenettside/oversikt.html#oppmote
-URL:https://haavardwikse.github.io/Smaagruppenettside/oversikt.html#oppmote
+ nTrykk her for å registrere oppmøte:\nhttps://xn--smgrupper-62a.no/overs
+ ikt.html#oppmote
+URL:https://xn--smgrupper-62a.no/oversikt.html#oppmote
 TRANSP:TRANSPARENT
 BEGIN:VALARM
 ACTION:DISPLAY
