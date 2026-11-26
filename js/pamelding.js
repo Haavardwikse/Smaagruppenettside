@@ -5,6 +5,8 @@ document.querySelectorAll('[data-org]').forEach((n) => (n.textContent = config.O
 
 const form = $('signup');
 const groupId = new URLSearchParams(location.search).get('gruppe') || '';
+// Forsiden uten påmeldingslenke er innloggingen (med forklaring for deltakere og nye ledere)
+if (!groupId) location.replace('oversikt.html' + location.hash);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 let group = null;
 let cityFound = null;

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101b1f">
   <meta name="robots" content="noindex, nofollow">
-  <title>Smågrupper – for ledere</title>
+  <title>Smågrupper – Bergen Frikirke</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="-36 -36 72 72"%3E%3Crect x="-36" y="-36" width="72" height="72" rx="14" fill="#101b1f"/%3E%3Cg fill="#fff"%3E%3Cpath d="M0 -30L10 -20L0 -10L-10 -20Z"/%3E%3Cpath d="M-20 -10L-10 0L-20 10L-30 0Z"/%3E%3Cpath d="M0 -10L10 0L0 10L-10 0Z"/%3E%3Cpath d="M20 -10L30 0L20 10L10 0Z"/%3E%3Cpath d="M0 10L10 20L0 30L-10 20Z"/%3E%3C/g%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -28,9 +28,15 @@
     <div id="setup"></div>
 
     <!-- Innlogging -->
-    <section class="card auth-card" id="view-login" hidden>
-      <h1>Logg inn</h1>
-      <p class="lead">For ledere, nestledere og administratorer.</p>
+    <section class="auth-card welcome" id="view-login" hidden>
+      <div class="welcome-intro">
+        <h1>Smågrupper i <span data-org>Bergen Frikirke</span></h1>
+        <p class="lead">Vi ønsker å følge Jesus sammen i vår by. Smågruppene møtes onsdager kl. 19–21.
+          Her har smågruppelederne oversikt over gruppen sin og registrerer oppmøte.</p>
+      </div>
+      <div class="card">
+      <h2>Logg inn</h2>
+      <p class="hint" style="margin:-6px 0 14px">For smågruppeledere, nestledere og administratorer.</p>
       <form id="login-form">
         <div class="field">
           <label for="login-email">E-post</label>
@@ -44,6 +50,17 @@
         <button type="submit" class="block">Logg inn</button>
       </form>
       <p class="center"><button class="ghost" id="btn-forgot">Glemt passord?</button></p>
+      </div>
+      <div class="welcome-help">
+        <div class="help-item">
+          <h3>Vil du være med i en smågruppe?</h3>
+          <p>Du trenger ikke logge inn. Be lederen av smågruppen om en påmeldingslenke, så melder du deg på der.</p>
+        </div>
+        <div class="help-item">
+          <h3>Skal du være smågruppeleder eller nestleder?</h3>
+          <p>Du får en invitasjonslenke fra Julie eller Ruben, eller fra lederen av gruppen hvis du skal være nestleder. Åpne lenken, så lager du brukeren din der.</p>
+        </div>
+      </div>
     </section>
 
     <!-- Invitasjon -->
@@ -476,7 +493,7 @@
   </dialog>
 
   <footer class="site-footer">
-    <a href="index.html">Påmeldingsskjema</a> · <a href="personvern.html">Personvern</a>
+    <a href="personvern.html">Personvern</a>
   </footer>
 
   <script type="module" src="js/oversikt.js"></script>

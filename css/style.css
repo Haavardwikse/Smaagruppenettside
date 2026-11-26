@@ -636,3 +636,14 @@ dialog h3.sub:first-child { margin-top: 4px; }
 /* iPhone zoomer inn når et felt under 16 px får fokus. Alle felt er derfor minst 16 px. */
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 input, select, textarea, .copy-row input { font-size: max(16px, 1rem); }
+
+/* Forsiden (innlogging) */
+.welcome { max-width: 460px; }
+.welcome-intro { padding: 4px 4px 0; margin-bottom: 16px; }
+.welcome-intro h1 { font-size: 1.5rem; }
+.welcome-intro .lead { margin-bottom: 0; }
+.welcome .card { margin: 0; }
+.welcome-help { display: grid; gap: 10px; margin-top: 16px; }
+.help-item { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.help-item h3 { font-size: 1rem; margin: 0 0 4px; }
+.help-item p { margin: 0; color: var(--muted); font-size: .95rem; }

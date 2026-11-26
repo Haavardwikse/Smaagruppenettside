@@ -16,7 +16,7 @@ nettsiden, så ingen kan omgå dem ved å fikle med nettleseren.
 ## Filer
 
 ```
-index.html              Påmeldingsskjemaet (åpnes via lenke fra lederen)
+index.html              Påmeldingsskjemaet (via lenke fra lederen). Uten lenke sendes man til innloggingen
 oversikt.html           Ledersiden: innlogging, gruppen, oppmøte, administrasjon
 sjekk.html              Systemsjekk: tester at nettside og database henger sammen
 personvern.html         Personvernerklæring (mal – må tilpasses)
@@ -118,6 +118,10 @@ Kjør den gjerne igjen etter hver oppdatering.
 ---
 
 ## Daglig bruk
+
+**Forsiden** (smågrupper.no) er innloggingen. Den forklarer kort hva siden er, at deltakere ikke
+logger inn, men får en påmeldingslenke fra lederen, og at nye ledere får en invitasjonslenke fra
+Julie eller Ruben (nestledere fra lederen av gruppen). Navnene står i `oversikt.html`.
 
 Gruppene heter det samme som lederen, for eksempel «Ingrid Berge». Navnet settes og oppdateres
 automatisk: når en ny leder kommer inn, når en leder endrer navnet sitt, og når en gruppe
