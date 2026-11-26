@@ -287,11 +287,15 @@ Reglene ligger i selve databasen, så de gjelder uansett hvordan data kommer inn
 
 ## Greit å vite
 
-- **E-post:** Uten egen e-posttjeneste sender Supabase bare e-post til medlemmer av
-  Supabase-teamet deres. Derfor virker **«Glemt passord»** bare for dem. Vil dere at alle ledere
-  skal kunne nullstille passordet selv, kobler dere til en e-posttjeneste (f.eks. Brevo, som har
-  en gratisplan) under **Authentication → Emails → SMTP Settings**.
-  Inntil da kan en administrator sette et nytt passord for en leder i **SQL Editor**:
+- **E-post («Glemt passord»):** Siden sender bare én slags e-post: lenken for å lage nytt passord.
+  Den sendes via Gmail (haavard.wikse@gmail.com) med et Google **app-passord**, satt opp under
+  **Authentication → Emails → SMTP Settings** (host `smtp.gmail.com`, port 587). Malen på norsk
+  ligger under **Authentication → Emails → Templates → Reset password**, og **Site URL** er
+  `https://xn--smgrupper-62a.no`. Får dere feilen «Username and Password not accepted» i Auth-loggen,
+  er app-passordet feil eller trukket tilbake: lag et nytt og lim det inn uten mellomrom.
+  Vil dere heller sende fra smagrupper.no, kan dere bytte til Brevo (domenet er lagt inn der, men
+  mangler tre DNS-poster hos Domeneshop).
+  Virker ikke e-posten, kan en administrator sette et nytt passord for en leder i **SQL Editor**:
   ```sql
   update auth.users
   set encrypted_password = extensions.crypt('NyttPassord123', extensions.gen_salt('bf'))
