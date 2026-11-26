@@ -1,6 +1,6 @@
 -- =====================================================================
 --  Smågrupper – Bergen Frikirke · databaseoppsett for Supabase
---  Versjon 12
+--  Versjon 13
 --
 --  Kjør hele filen i Supabase: SQL Editor → New query → Run.
 --  Kjør deretter postnummer.sql på samme måte (postnummerregisteret).
@@ -193,6 +193,21 @@ create table if not exists public.triad_members (
   primary key (triad_id, user_id),
   unique (user_id)
 );
+
+-- Forespørsler om tilgang: en person lager konto selv og ber om tilgang.
+-- En administrator godkjenner eller avslår (decide_access_request).
+create table if not exists public.access_requests (
+  id             uuid primary key default gen_random_uuid(),
+  user_id        uuid not null references public.profiles(id) on delete cascade,
+  requested_role text not null check (requested_role in ('leder', 'nestleder', 'admin')),
+  message        text check (char_length(message) <= 500),
+  status         text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  created_at     timestamptz not null default now(),
+  decided_by     uuid references public.profiles(id) on delete set null,
+  decided_at     timestamptz
+);
+create unique index if not exists access_requests_one_pending on public.access_requests(user_id) where status = 'pending';
+create index if not exists access_requests_decided_by_idx on public.access_requests(decided_by);
 
 -- Indekser for raske oppslag
 create index if not exists members_group_id_idx       on public.members(group_id);
@@ -690,7 +705,7 @@ end $$;
 create or replace function public.schema_version()
 returns int
 language sql immutable set search_path = public
-as $$ select 12; $$;
+as $$ select 13; $$;
 
 -- Offentlig: navnet på én gruppe (fra påmeldingslenken). Gruppelisten er ikke offentlig.
 drop function if exists public.group_public_info(uuid);
@@ -1254,6 +1269,96 @@ end;
 $$;
 
 -- Admin: rydd bort utløpte invitasjoner
+-- Be om tilgang (den innloggede selv). Navn og telefon lagres på profilen.
+-- Har personen en forespørsel som venter, oppdateres den.
+create or replace function public.request_access(p_role text, p_message text default null,
+                                                 p_name text default null, p_phone text default null)
+returns uuid
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_id   uuid;
+  v_name text := public.norm_name(p_name);
+  v_ph   text := public.norm_phone(p_phone);
+  v_msg  text := nullif(btrim(coalesce(p_message, '')), '');
+begin
+  if auth.uid() is null then
+    raise exception 'Du må være logget inn';
+  end if;
+  if public.is_admin() or exists (select 1 from public.group_leaders gl join public.groups g on g.id = gl.group_id
+                                  where gl.user_id = auth.uid() and g.active) then
+    raise exception 'Du har allerede tilgang.';
+  end if;
+  if p_role not in ('leder', 'nestleder', 'admin') then
+    raise exception 'Velg hva du søker om.';
+  end if;
+  if v_msg is not null and char_length(v_msg) > 500 then
+    raise exception 'Meldingen kan være på høyst 500 tegn.';
+  end if;
+  if v_name is not null then
+    if char_length(v_name) < 2 then raise exception 'Skriv navnet ditt.'; end if;
+    update public.profiles set full_name = v_name where id = auth.uid();
+  end if;
+  if v_ph is not null then
+    if v_ph !~ '^\+[0-9]{8,15}$' then raise exception 'Skriv inn et gyldig telefonnummer.'; end if;
+    update public.profiles set phone = v_ph where id = auth.uid();
+  end if;
+  if exists (select 1 from public.profiles where id = auth.uid() and (coalesce(full_name, '') = '' or phone is null)) then
+    raise exception 'Skriv inn navn og telefonnummer.';
+  end if;
+
+  update public.access_requests set requested_role = p_role, message = v_msg, created_at = now()
+  where user_id = auth.uid() and status = 'pending'
+  returning id into v_id;
+  if v_id is null then
+    insert into public.access_requests (user_id, requested_role, message)
+    values (auth.uid(), p_role, v_msg) returning id into v_id;
+  end if;
+  return v_id;
+end;
+$$;
+
+-- Godkjenn eller avslå en forespørsel (bare admin). Ved godkjenning gis tilgangen med en gang:
+-- leder = ny smågruppe med personen som leder, nestleder = i valgt gruppe, admin = administrator.
+create or replace function public.decide_access_request(p_id uuid, p_approve boolean,
+                                                        p_role text default null, p_group uuid default null)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  r      public.access_requests%rowtype;
+  v_role text;
+begin
+  if not public.is_admin() then
+    raise exception 'Bare administratorer kan godkjenne forespørsler';
+  end if;
+  select * into r from public.access_requests where id = p_id for update;
+  if not found or r.status <> 'pending' then
+    raise exception 'Forespørselen er allerede behandlet.';
+  end if;
+  if p_approve then
+    v_role := coalesce(p_role, r.requested_role);
+    if v_role = 'admin' then
+      update public.profiles set role = 'admin' where id = r.user_id;
+    elsif v_role = 'leder' then
+      perform public.create_group(null, r.user_id);
+    elsif v_role = 'nestleder' then
+      if p_group is null or not exists (select 1 from public.groups where id = p_group and active) then
+        raise exception 'Velg hvilken gruppe hen skal være nestleder i.';
+      end if;
+      insert into public.group_leaders (group_id, user_id, role) values (p_group, r.user_id, 'nestleder')
+      on conflict (group_id, user_id) do nothing;
+    else
+      raise exception 'Ugyldig rolle';
+    end if;
+  end if;
+  update public.access_requests
+  set status = case when p_approve then 'approved' else 'rejected' end,
+      decided_by = auth.uid(), decided_at = now()
+  where id = p_id;
+end;
+$$;
+
 -- Slett en gruppe for godt, med deltakere, samlinger og oppmøte.
 -- Bare administratorer, og bare grupper som allerede ligger i «Slettede grupper».
 create or replace function public.purge_group(p_group uuid)
@@ -1315,6 +1420,8 @@ grant execute on function public.admin_overview()                              t
 grant execute on function public.data_health()                                 to authenticated;
 grant execute on function public.delete_expired_invites()                      to authenticated;
 grant execute on function public.purge_group(uuid)                             to authenticated;
+grant execute on function public.request_access(text, text, text, text)        to authenticated;
+grant execute on function public.decide_access_request(uuid, boolean, text, uuid) to authenticated;
 
 
 -- =====================================================================
@@ -1324,7 +1431,7 @@ grant execute on function public.purge_group(uuid)                             t
 
 revoke all on public.groups, public.profiles, public.group_leaders, public.members,
               public.meetings, public.attendance, public.group_invites,
-              public.triads, public.triad_members, public.postal_codes
+              public.triads, public.triad_members, public.postal_codes, public.access_requests
   from anon, authenticated;
 
 -- Besøkende: kan bare slå opp postnummer. Påmelding går via register_member().
@@ -1345,6 +1452,7 @@ grant select                                     on public.attendance    to auth
 grant select, delete                             on public.group_invites to authenticated;
 grant select, delete                             on public.triads        to authenticated;
 grant select                                     on public.triad_members to authenticated;
+grant select                                     on public.access_requests to authenticated;
 
 
 -- =====================================================================
@@ -1361,6 +1469,7 @@ alter table public.attendance    enable row level security;
 alter table public.group_invites enable row level security;
 alter table public.triads        enable row level security;
 alter table public.triad_members enable row level security;
+alter table public.access_requests enable row level security;
 
 -- Fjern alle gamle regler, så ingenting gammelt henger igjen
 do $$
@@ -1369,7 +1478,7 @@ begin
   for r in select policyname, tablename from pg_policies
            where schemaname = 'public'
              and tablename in ('postal_codes', 'groups', 'profiles', 'group_leaders', 'members', 'meetings',
-                               'attendance', 'group_invites', 'triads', 'triad_members')
+                               'attendance', 'group_invites', 'triads', 'triad_members', 'access_requests')
   loop
     execute format('drop policy %I on public.%I', r.policyname, r.tablename);
   end loop;
@@ -1448,6 +1557,10 @@ create policy "triads: admin sletter" on public.triads
   for delete to authenticated using (public.is_admin());
 create policy "triad_members: triade og admin ser" on public.triad_members
   for select to authenticated using (public.is_admin() or public.in_my_triad(user_id));
+
+-- FORESPØRSLER OM TILGANG (lages og avgjøres via funksjonene)
+create policy "access_requests: egen og admin ser" on public.access_requests
+  for select to authenticated using (user_id = (select auth.uid()) or public.is_admin());
 
 
 -- =====================================================================

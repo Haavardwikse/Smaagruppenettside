@@ -119,9 +119,16 @@ Kjør den gjerne igjen etter hver oppdatering.
 
 ## Daglig bruk
 
-**Forsiden** (smågrupper.no) er innloggingen. Den forklarer kort hva siden er, at deltakere ikke
-logger inn, men får en påmeldingslenke fra lederen, og at nye ledere får en invitasjonslenke fra
-Julie eller Ruben (nestledere fra lederen av gruppen). Navnene står i `oversikt.html`.
+**Forsiden** (smågrupper.no) er innloggingen. Den forklarer kort hva siden er, og at deltakere ikke
+logger inn, men får en påmeldingslenke fra lederen.
+
+**Be om tilgang.** Smågruppeledere, nestledere og administratorer kan trykke **Be om tilgang** på
+forsiden. De fyller inn navn, e-post, telefon og passord, velger hva de søker om, og kan skrive en
+kort melding. Brukeren lages med en gang, men de ser ingenting før en administrator har godkjent.
+Administratorene ser forespørslene øverst under **Tilgang** (med et tall på fanen) og et varsel på
+Oversikt. **Godkjenn** gir tilgangen med en gang: en smågruppeleder får sin egen smågruppe, en
+nestleder legges i gruppen du velger, og en administrator ser alt. Du kan gi en annen tilgang enn
+personen ba om. **Avslå** gir ingen tilgang, og personen kan sende en ny forespørsel.
 
 Gruppene heter det samme som lederen, for eksempel «Ingrid Berge». Navnet settes og oppdateres
 automatisk: når en ny leder kommer inn, når en leder endrer navnet sitt, og når en gruppe
@@ -324,7 +331,7 @@ Tilgangsreglene er testet mot Postgres med egne brukere for hver rolle. Testene 
 - Besøkende kan bare slå opp postnumre og bruke de fire offentlige funksjonene. Alle tabeller har
   radtilgang (RLS), og alle funksjoner har fast søkesti.
 
-Det er 243 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
+Det er 275 automatiske kontroller av tilgang og datakvalitet, der hver rolle (besøkende, fremmed
 konto, leder, nestleder, leder i annen gruppe og administrator) prøver alt den ikke skal få lov
 til. Oppgradering fra tidligere versjoner er testet uten at data går tapt. Hele flyten er også testet i
 nettleseren på mobil og PC: påmelding, oppmøte, arkivering, nestleder, multiplisering, triader og

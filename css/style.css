@@ -647,3 +647,21 @@ input, select, textarea, .copy-row input { font-size: max(16px, 1rem); }
 .help-item { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
 .help-item h3 { font-size: 1rem; margin: 0 0 4px; }
 .help-item p { margin: 0; color: var(--muted); font-size: .95rem; }
+
+/* Be om tilgang */
+.role-choice { display: grid; gap: 8px; border: 0; padding: 0; margin: 0 0 16px; }
+.role-choice legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
+.choice-opt.block-opt { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 12px; cursor: pointer; font-weight: 400; }
+.choice-opt.block-opt input { width: 18px; height: 18px; margin: 3px 0 0; accent-color: var(--primary); flex: none; }
+.choice-opt.block-opt:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
+.choice-opt.block-opt .psub { margin-top: 2px; }
+.success-mark { width: 56px; height: 56px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-size: 1.6rem; font-weight: 700; margin: 0 0 14px; }
+.request-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 4px; }
+.request-row .pmain { flex: 1; min-width: 0; }
+.request-msg { background: var(--bg); border-radius: 10px; padding: 8px 12px; margin: 8px 0 0; font-size: .95rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.request-actions { display: flex; flex-direction: column; gap: 6px; }
+.request-actions button { margin: 0; }
+@media (max-width: 480px) { .request-row { flex-direction: column; } .request-actions { flex-direction: row; } }
+.tab-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 5px; border-radius: 999px; background: #c0392b; color: #fff; font-size: .72rem; font-weight: 700; vertical-align: 1px; }
+.request-notice { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.request-notice button { margin: 0; white-space: nowrap; }

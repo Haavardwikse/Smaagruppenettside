@@ -57,8 +57,9 @@
           <p>Du trenger ikke logge inn. Be lederen av smågruppen om en påmeldingslenke, så melder du deg på der.</p>
         </div>
         <div class="help-item">
-          <h3>Skal du være smågruppeleder eller nestleder?</h3>
-          <p>Du får en invitasjonslenke fra Julie eller Ruben, eller fra lederen av gruppen hvis du skal være nestleder. Åpne lenken, så lager du brukeren din der.</p>
+          <h3>Skal du være smågruppeleder, nestleder eller administrator?</h3>
+          <p>Be om tilgang. Du lager brukeren din med en gang, og får tilgang når en administrator har godkjent forespørselen.</p>
+          <button type="button" class="secondary block" id="btn-request" style="margin-top:12px">Be om tilgang</button>
         </div>
       </div>
     </section>
@@ -128,9 +129,41 @@
     </section>
 
     <!-- Uten tilgang -->
+    <!-- Be om tilgang (ny bruker) -->
+    <section class="card auth-card" id="view-request" hidden>
+      <h1>Be om tilgang</h1>
+      <p class="lead">For smågruppeledere, nestledere og administratorer. Du lager brukeren din nå, og får tilgang når en administrator har godkjent forespørselen.</p>
+      <form id="request-form" novalidate>
+        <div class="field">
+          <label for="rq-name">Fullt navn</label>
+          <input type="text" id="rq-name" autocomplete="name" maxlength="100" required>
+        </div>
+        <div class="field">
+          <label for="rq-email">E-post</label>
+          <input type="email" id="rq-email" autocomplete="email" maxlength="120" required>
+          <div class="hint">Blir innloggingen din.</div>
+        </div>
+        <div class="field">
+          <label for="rq-phone">Telefon</label>
+          <input type="tel" id="rq-phone" autocomplete="tel" inputmode="tel" maxlength="20" required>
+        </div>
+        <div class="field">
+          <label for="rq-password">Velg passord</label>
+          <input type="password" id="rq-password" autocomplete="new-password" minlength="8" required>
+          <div class="hint">Minst 8 tegn.</div>
+        </div>
+        <div id="rq-role-box"></div>
+        <div class="notice error" id="request-error" hidden></div>
+        <button type="submit" class="block" id="request-submit">Send forespørsel</button>
+      </form>
+      <p class="center"><button type="button" class="ghost" id="request-back">Har du allerede en bruker? Logg inn</button></p>
+    </section>
+
     <section class="card auth-card" id="view-noaccess" hidden>
-      <h1>Du har ikke fått tilgang ennå</h1>
-      <p class="lead">Du er logget inn, men er ikke leder i noen gruppe. Har du fått en invitasjonslenke, åpner du den. Ellers kan du ta kontakt med en administrator.</p>
+      <div id="noaccess-body">
+        <h1>Du har ikke fått tilgang ennå</h1>
+        <p class="lead">Du er logget inn, men er ikke leder i noen gruppe.</p>
+      </div>
     </section>
 
     <!-- Hovedvisning -->
@@ -337,6 +370,7 @@
             <button class="small" id="btn-new-group">+ Ny gruppe</button>
           </div>
         </div>
+        <div id="ov-requests"></div>
         <div class="stats compact" id="ov-stats"></div>
         <div id="ov-health"></div>
         <ul class="glist" id="ov-groups"></ul>
@@ -387,6 +421,12 @@
           <button class="small" id="btn-invite">+ Inviter</button>
         </div>
         <p class="lead">Gi en ny leder eller administrator tilgang: trykk «+ Inviter» og send lenken til personen.</p>
+        <div id="requests-box" hidden>
+          <h2 class="section-title">Forespørsler om tilgang <span class="count" id="requests-count"></span></h2>
+          <div class="card plain">
+            <ul class="plist" id="requests-list"></ul>
+          </div>
+        </div>
         <div id="people-pending" hidden>
           <h2 class="section-title">Venter på å godta</h2>
           <div class="card plain">

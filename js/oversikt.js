@@ -217,11 +217,139 @@ function downloadCsv(rows, label) {
 // =====================================================================
 
 function show(view) {
-  for (const v of ['login', 'invite', 'recovery', 'noaccess', 'app']) $('view-' + v).hidden = v !== view;
+  for (const v of ['login', 'invite', 'recovery', 'request', 'noaccess', 'app']) $('view-' + v).hidden = v !== view;
   $('usermenu').hidden = !(view === 'app' || view === 'noaccess');
+  if (view === 'noaccess') renderNoAccess();
+}
+
+/* ================= BE OM TILGANG ================= */
+
+const REQUEST_ROLES = [
+  ['leder', 'Smågruppeleder', 'Får sin egen smågruppe.'],
+  ['nestleder', 'Nestleder', 'Hjelper lederen i en gruppe. Skriv hvem du skal være nestleder for.'],
+  ['admin', 'Administrator', 'Ser og styrer alle grupper.'],
+];
+/** Valg av rolle og en kort melding. */
+function requestRoleFields(prefix, current = 'leder', message = '') {
+  const msg = el('textarea', { id: prefix + '-msg', maxlength: 500, rows: 3, placeholder: 'F.eks. hvem du skal være nestleder for' });
+  msg.value = message || '';
+  return {
+    nodes: [
+      el('fieldset', { class: 'field role-choice' }, el('legend', {}, 'Hva søker du om?'),
+        REQUEST_ROLES.map(([v, label, help]) => el('label', { class: 'choice-opt block-opt' },
+          el('input', { type: 'radio', name: prefix + '-role', value: v, checked: v === current }),
+          el('span', {}, el('strong', {}, label), el('span', { class: 'psub' }, help))))),
+      el('div', { class: 'field' }, el('label', { for: prefix + '-msg' }, 'Melding ', el('span', { class: 'opt' }, '(valgfritt)')), msg),
+    ],
+    read: () => ({ role: document.querySelector(`input[name="${prefix}-role"]:checked`)?.value, message: msg.value.trim() }),
+  };
+}
+let requestFields = null;
+$('btn-request').addEventListener('click', () => {
+  requestFields = requestRoleFields('rq');
+  $('rq-role-box').replaceChildren(...requestFields.nodes);
+  $('request-error').hidden = true;
+  show('request');
+  $('rq-name').focus();
+});
+$('request-back').addEventListener('click', () => show('login'));
+
+let sendingRequest = false;
+$('request-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fail = (msg, focus) => { $('request-error').textContent = msg; $('request-error').hidden = false; focus?.focus(); };
+  const name = $('rq-name').value.trim().replace(/\s+/g, ' ');
+  const email = $('rq-email').value.trim().toLowerCase();
+  const phone = normPhone($('rq-phone').value);
+  const pw = $('rq-password').value;
+  const { role, message } = requestFields.read();
+  if (name.split(' ').length < 2) return fail('Skriv fullt navn (fornavn og etternavn).', $('rq-name'));
+  if (!validEmail(email)) return fail('Skriv inn en gyldig e-postadresse.', $('rq-email'));
+  if (!validPhone(phone)) return fail('Skriv inn et gyldig telefonnummer (8 sifre).', $('rq-phone'));
+  if (pw.length < 8) return fail('Passordet må ha minst 8 tegn.', $('rq-password'));
+  if (!role) return fail('Velg hva du søker om.');
+  const btn = $('request-submit');
+  btn.disabled = true;
+  sendingRequest = true;
+  try {
+    const { data, error } = await supabase.auth.signUp({ email, password: pw, options: { data: { full_name: name } } });
+    if (error) {
+      throw new Error(/already|registered|exists/i.test(error.message)
+        ? 'Det finnes allerede en bruker med denne e-posten. Logg inn, så kan du be om tilgang derfra.'
+        : friendlyError(error));
+    }
+    if (!data.session) throw new Error('Brukeren ble laget, men du ble ikke logget inn. Prøv å logge inn.');
+    state.session = data.session;
+    const { error: rqErr } = await supabase.rpc('request_access', { p_role: role, p_message: message || null, p_name: name, p_phone: phone });
+    if (rqErr) throw rqErr;
+    $('request-form').reset();
+    show('noaccess');
+  } catch (err) {
+    fail(err.message || friendlyError(err));
+  } finally {
+    btn.disabled = false;
+    sendingRequest = false;
+  }
+});
+
+const fmtDateTime = (iso) => new Date(iso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' });
+
+/** Innlogget uten tilgang: vis forespørselen som venter, eller la personen be om tilgang. */
+async function renderNoAccess() {
+  const body = $('noaccess-body');
+  const uid = state.session?.user?.id;
+  if (!uid) return;
+  const [{ data: reqs }, { data: me }] = await Promise.all([
+    supabase.from('access_requests').select('id, requested_role, message, status, created_at, decided_at')
+      .eq('user_id', uid).order('created_at', { ascending: false }).limit(1),
+    supabase.from('profiles').select('full_name, phone, email').eq('id', uid).maybeSingle(),
+  ]);
+  const last = reqs?.[0];
+  const who = personName(me) || state.session.user.email;
+  $('who').textContent = firstName({ full_name: who });
+  $('menu-who').textContent = who;
+  if (last?.status === 'pending') {
+    body.replaceChildren(
+      el('div', { class: 'success-mark', 'aria-hidden': 'true' }, '✓'),
+      el('h1', {}, 'Forespørselen er sendt'),
+      el('p', { class: 'lead' }, `Du har bedt om tilgang som ${REQUEST_ROLES.find((x) => x[0] === last.requested_role)?.[1].toLowerCase() || 'leder'}. ` +
+        'Du får tilgang så snart en administrator har godkjent den. Logg inn igjen senere.'),
+      el('p', { class: 'hint' }, `Sendt ${fmtDateTime(last.created_at)}.`),
+      el('button', { class: 'secondary block', onclick: () => route(state.session) }, 'Sjekk på nytt'));
+    return;
+  }
+  const fields = requestRoleFields('na', last?.requested_role || 'leder');
+  const nameIn = el('input', { type: 'text', id: 'na-name', maxlength: 100, autocomplete: 'name', value: me?.full_name || '' });
+  const phoneIn = el('input', { type: 'tel', id: 'na-phone', maxlength: 20, inputmode: 'tel', autocomplete: 'tel', value: me?.phone ? fmtPhone(me.phone) : '' });
+  const errBox = el('div', { class: 'notice error', hidden: true });
+  const send = el('button', { type: 'submit', class: 'block' }, 'Send forespørsel');
+  const form = el('form', {},
+    me?.full_name ? null : el('div', { class: 'field' }, el('label', { for: 'na-name' }, 'Fullt navn'), nameIn),
+    me?.phone ? null : el('div', { class: 'field' }, el('label', { for: 'na-phone' }, 'Telefon'), phoneIn),
+    fields.nodes, errBox, send);
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const { role, message } = fields.read();
+    const ph = me?.phone ? null : normPhone(phoneIn.value);
+    if (!me?.full_name && nameIn.value.trim().split(/\s+/).length < 2) { errBox.textContent = 'Skriv fullt navn.'; errBox.hidden = false; return; }
+    if (!me?.phone && !validPhone(ph)) { errBox.textContent = 'Skriv inn et gyldig telefonnummer (8 sifre).'; errBox.hidden = false; return; }
+    send.disabled = true;
+    const { error } = await supabase.rpc('request_access', { p_role: role, p_message: message || null,
+      p_name: me?.full_name ? null : nameIn.value.trim(), p_phone: ph });
+    send.disabled = false;
+    if (error) { errBox.textContent = friendlyError(error); errBox.hidden = false; return; }
+    renderNoAccess();
+  });
+  body.replaceChildren(
+    el('h1', {}, last?.status === 'rejected' ? 'Forespørselen ble ikke godkjent' : 'Du har ikke fått tilgang ennå'),
+    el('p', { class: 'lead' }, last?.status === 'rejected'
+      ? 'En administrator har avslått forespørselen. Ta gjerne kontakt med kirken, eller send en ny forespørsel.'
+      : 'Du er logget inn, men har ikke tilgang til noen gruppe. Har du fått en invitasjonslenke, åpner du den. Ellers kan du be om tilgang her.'),
+    form);
 }
 
 async function route(session) {
+  if (sendingRequest) return; // forespørselen viser selv neste skjerm
   state.session = session;
   if (inRecovery && session) return show('recovery');
   if (state.inviteCode) return showInvite();
@@ -447,18 +575,21 @@ async function loadAll() {
 
   if (state.isAdmin) {
     state.groups = state.allGroups;
-    const [profiles, overview, health] = await Promise.all([
+    const [profiles, overview, health, requests] = await Promise.all([
       q(supabase.from('profiles').select('id, email, full_name, role, phone').order('email')),
       q(supabase.rpc('admin_overview')),
       q(supabase.rpc('data_health')),
+      q(supabase.from('access_requests').select('id, user_id, requested_role, message, created_at').eq('status', 'pending').order('created_at')),
     ]);
     state.profiles = profiles;
+    state.requests = requests || [];
     state.overview = new Map((overview || []).map((o) => [o.group_id, o]));
     state.health = health;
   } else {
     const mine = new Set(state.leaders.filter((l) => l.user_id === uid).map((l) => l.group_id));
     state.groups = state.allGroups.filter((g) => mine.has(g.id));
     state.profiles = [];
+    state.requests = [];
     state.overview = new Map();
     state.health = null;
   }
@@ -508,7 +639,9 @@ function renderTabs() {
   nav.innerHTML = '';
   for (const [id, label] of tabs) {
     const active = state.tab === id || (id === 'overview' && state.tab === 'group');
-    nav.append(el('button', { role: 'tab', 'data-tab': id, 'aria-selected': String(active) }, label));
+    const badge = id === 'people' && state.requests?.length
+      ? el('span', { class: 'tab-badge', 'aria-label': `${state.requests.length} forespørsler` }, state.requests.length) : null;
+    nav.append(el('button', { role: 'tab', 'data-tab': id, 'aria-selected': String(active) }, label, badge));
   }
 }
 
@@ -2124,7 +2257,71 @@ function accountRoles(p) {
 const ROLE_PILL = { admin: 'Administrator', leder: 'Leder', nestleder: 'Nestleder' };
 const rolePills = (roles) => roles.map((r) => el('span', { class: `role-pill role-${r}` }, ROLE_PILL[r]));
 
+function renderRequests() {
+  const reqs = state.requests || [];
+  renderTabs();
+  $('requests-box').hidden = reqs.length === 0;
+  $('requests-count').textContent = reqs.length;
+  $('requests-list').replaceChildren(...reqs.map((r) => {
+    const p = state.profiles.find((x) => x.id === r.user_id) || {};
+    return el('li', { class: 'request-row' },
+      el('div', { class: 'pmain' },
+        el('span', { class: 'pname' }, personName(p), el('span', { class: `role-pill role-${r.requested_role}` }, `Ønsker: ${roleLabel(r.requested_role)}`)),
+        el('span', { class: 'psub' }, [p.email, fmtPhone(p.phone), fmtDateTime(r.created_at)].filter(Boolean).join(' · ')),
+        r.message ? el('p', { class: 'request-msg' }, r.message) : null),
+      el('div', { class: 'request-actions' },
+        el('button', { class: 'small', onclick: () => approveRequest(r, p) }, 'Godkjenn'),
+        el('button', { class: 'ghost small danger-text', onclick: () => rejectRequest(r, p) }, 'Avslå')));
+  }));
+  const box = $('ov-requests');
+  box.replaceChildren(...(reqs.length ? [el('div', { class: 'notice info request-notice' },
+    el('span', {}, `${reqs.length === 1 ? 'Én forespørsel' : `${reqs.length} forespørsler`} om tilgang venter.`),
+    el('button', { class: 'small', onclick: () => setTab('people') }, 'Se forespørsler'))] : []));
+}
+
+async function approveRequest(r, p) {
+  const roleSel = el('select', { id: 'ap-role' },
+    el('option', { value: 'leder' }, 'Smågruppeleder (får egen smågruppe)'),
+    el('option', { value: 'nestleder' }, 'Nestleder i en gruppe'),
+    el('option', { value: 'admin' }, 'Administrator'));
+  roleSel.value = r.requested_role;
+  const groupSel = el('select', { id: 'ap-group' }, el('option', { value: '' }, 'Velg gruppe …'),
+    state.groups.map((g) => el('option', { value: g.id }, groupTitle(g.id))));
+  const groupBox = el('div', { class: 'field' }, el('label', { for: 'ap-group' }, 'Hvilken gruppe?'), groupSel);
+  const sync = () => { groupBox.hidden = roleSel.value !== 'nestleder'; };
+  roleSel.addEventListener('change', sync); sync();
+  const errBox = el('div', { class: 'notice error', hidden: true });
+  const ok = el('button', {}, 'Godkjenn');
+  const dlg = openDialog(
+    el('h2', {}, `Gi ${personName(p)} tilgang`),
+    r.message ? el('p', { class: 'request-msg' }, r.message) : null,
+    el('div', { class: 'field' }, el('label', { for: 'ap-role' }, 'Tilgang'), roleSel),
+    groupBox, errBox,
+    el('div', { class: 'actions' },
+      el('button', { class: 'secondary', onclick: () => dlg.close() }, 'Avbryt'), ok));
+  ok.addEventListener('click', async () => {
+    if (roleSel.value === 'nestleder' && !groupSel.value) { errBox.textContent = 'Velg hvilken gruppe.'; errBox.hidden = false; return; }
+    ok.disabled = true;
+    const { error } = await supabase.rpc('decide_access_request', {
+      p_id: r.id, p_approve: true, p_role: roleSel.value, p_group: roleSel.value === 'nestleder' ? groupSel.value : null });
+    ok.disabled = false;
+    if (error) { errBox.textContent = friendlyError(error); errBox.hidden = false; return; }
+    dlg.close();
+    toast(`${personName(p)} har fått tilgang.`);
+    await reload();
+  });
+}
+
+async function rejectRequest(r, p) {
+  if (!(await ask(`Avslå forespørselen fra ${personName(p)}? Hen får ikke tilgang, men kan sende en ny forespørsel.`, 'Avslå', true))) return;
+  const { error } = await supabase.rpc('decide_access_request', { p_id: r.id, p_approve: false });
+  if (error) return toast(friendlyError(error), 'error');
+  toast('Forespørselen er avslått.');
+  await reload();
+}
+
 function renderPeople() {
+  renderRequests();
   renderPending();
   const list = $('people-list');
   list.innerHTML = '';
