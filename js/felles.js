@@ -58,6 +58,9 @@ export function toast(message, type = 'ok') {
 /** Gjør tekniske feilmeldinger forståelige. Våre egne meldinger fra databasen er allerede på norsk. */
 export function friendlyError(error) {
   const msg = (error && (error.message || error.error_description || error.msg)) || String(error);
+  // Supabase: samme e-post kan bare be om ny lenke én gang i minuttet
+  const wait = msg.match(/only request this after (\d+) seconds?/i);
+  if (wait) return `Du har nettopp bedt om en lenke. Av sikkerhetshensyn kan du be om en ny om ${wait[1]} sekunder.`;
   const map = [
     [/Invalid login credentials/i, 'Feil e-post eller passord.'],
     [/Email not confirmed/i, 'E-postadressen er ikke bekreftet ennå.'],
